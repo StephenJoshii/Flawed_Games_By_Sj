@@ -1,25 +1,39 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-export const MomoCart = () => {
-    // A simple placeholder style for the cart image.
-    const cartStyle = {
-        backgroundImage: "url('https://placehold.co/600x400/F5F5F5/333333?text=Momo+Cart')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-    };
+export function MomoCart() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-center">Your Momo Stall</CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-center justify-center p-6">
+        {/* This is a simple, clean SVG representing a food stall. */}
+        <svg
+          width="150"
+          height="150"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="text-primary"
+        >
+          {/* Awning stripes */}
+          <path d="M4 11.5l1.2 -1.2" />
+          <path d="M8 11.5l1.2 -1.2" />
+          <path d="M12 11.5l1.2 -1.2" />
+          <path d="M16 11.5l1.2 -1.2" />
+          {/* Roof */}
+          <path d="M3 12.5l9 -9l9 9h-18" />
+          {/* Posts */}
+          <path d="M6 12.5v7.5" />
+          <path d="M18 12.5v7.5" />
+          {/* Counter */}
+          <path d="M4 20h16" />
+        </svg>
+      </CardContent>
+    </Card>
+  );
+}
 
-    return (
-        <Card className="border-2 border-gray-200 shadow-lg h-full">
-            <CardHeader>
-                <CardTitle className="text-xl font-bold text-gray-800 text-center">Your Humble Momo Stall</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div style={cartStyle} className="w-full h-64 md:h-80 rounded-lg shadow-inner flex items-center justify-center">
-                    <div className="text-white text-2xl font-bold bg-black bg-opacity-50 px-4 py-2 rounded-md">
-                        🥟 Fresh Momos! 🥟
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
-};

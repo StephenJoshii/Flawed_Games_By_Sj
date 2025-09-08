@@ -1,36 +1,28 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Wallet, CookingPot, CalendarDays } from 'lucide-react';
 
-// A dictionary for emoji icons
-const ICONS = {
-  money: '💰',
-  momo: '🥟',
-  day: '☀️',
-};
-
-// A reusable Stat Card component
-const StatCard = ({ title, value, icon }) => (
-  <div className="text-center">
-    <span className="text-lg md:text-xl font-semibold text-gray-800">
-      {icon} {value}
-    </span>
-    <p className="text-xs text-gray-500">{title}</p>
-  </div>
+// A single stat card component for reusability
+const StatCard = ({ title, value, icon: Icon }) => (
+  <Card className="flex-1">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-muted-foreground" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold">{value}</div>
+    </CardContent>
+  </Card>
 );
 
-export const Header = ({ money, momoStock, day }) => {
+export function Header({ money, momoStock, day }) {
   return (
-    <header className="bg-white rounded-xl shadow-lg p-4 mb-6 border-4 border-red-500">
-      <div className="flex flex-wrap justify-between items-center">
-        <div>
-          <h1 className="text-2xl md:text-4xl font-bold text-red-600">Kathmandu Momo Tycoon</h1>
-          <p className="text-sm md:text-base text-gray-600">From a humble cart to a momo empire!</p>
-        </div>
-        <div className="flex items-center space-x-4 md:space-x-6 mt-4 md:mt-0">
-          <StatCard title="Cash" value={`Rs. ${money}`} icon={ICONS.money} />
-          <StatCard title="Momos" value={momoStock} icon={ICONS.momo} />
-          <StatCard title="Day" value={day} icon={ICONS.day} />
-        </div>
+    <header className="mb-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatCard title="Money" value={`Rs. ${money}`} icon={Wallet} />
+        <StatCard title="Momo Stock" value={momoStock} icon={CookingPot} />
+        <StatCard title="Day" value={day} icon={CalendarDays} />
       </div>
     </header>
   );
-};
+}
+
