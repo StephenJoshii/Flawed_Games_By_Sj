@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 // --- Base Game Configuration ---
 const BASE_MOMO_PRICE = 50;
 const BASE_MAKE_MOMO_TIME_MS = 3000;
+const SERVING_SIZE = 10; // A full plate of momos
 
 // --- Upgrade Definitions ---
 export const UPGRADES_CONFIG = {
@@ -29,24 +30,38 @@ export const UPGRADES_CONFIG = {
   },
 };
 
+const INITIAL_STATE = {
+  money: 100,
+  flour: 5,
+  filling: 5,
+  momoStock: 20,
+  day: 1,
+  upgradeLevels: {
+    steamer: 1,
+    filling: 1,
+    cart: 1,
+  },
+};
+
 export function useGameLogic({ notify }) {
   // --- Core Game State ---
-  const [money, setMoney] = useState(100);
-  const [flour, setFlour] = useState(5);
-  const [filling, setFilling] = useState(5);
-  const [momoStock, setMomoStock] = useState(20);
-  const [day, setDay] = useState(1);
+  const [money, setMoney] = useState(INITIAL_STATE.money);
+  const [flour, setFlour] = useState(INITIAL_STATE.flour);
+  const [filling, setFilling] = useState(INITIAL_STATE.filling);
+  const [momoStock, setMomoStock] = useState(INITIAL_STATE.momoStock);
+  const [day, setDay] = useState(INITIAL_STATE.day);
   const [customers, setCustomers] = useState([]);
   const [isMakingMomo, setIsMakingMomo] = useState(false);
   const [makingProgress, setMakingProgress] = useState(0);
   const [lastServedInfo, setLastServedInfo] = useState(null);
 
+  // --- Game Status State ---
+  const [gameState, setGameState] = useState('playing'); // 'playing', 'day_complete', 'game_over'
+  const [moneyEarnedToday, setMoneyEarnedToday] = useState(0);
+  const dailyGoal = useMemo(() => 200 + (day - 1) * 100, [day]);
+
   // --- Upgrade State ---
-  const [upgradeLevels, setUpgradeLevels] = useState({
-    steamer: 1,
-    filling: 1,
-    cart: 1,
-  });
+  const [upgradeLevels, setUpgradeLevels] = useState(INITIAL_STATE.upgradeLevels);
 
   // --- Derived Game Values (based on upgrades) ---
   const derivedValues = useMemo(() => {
@@ -55,19 +70,52 @@ export function useGameLogic({ notify }) {
     const cartLevel = upgradeLevels.cart;
 
     return {
-      momoPrice: BASE_MOMO_PRICE + (fillingLevel - 1) * 10, // +Rs. 10 per level
-      makeMomoTime: BASE_MAKE_MOMO_TIME_MS / (1 + (steamerLevel - 1) * 0.2), // 20% faster per level
-      customerSpawnMin: 4000 / (1 + (cartLevel - 1) * 0.25), // 25% faster per level
+      momoPrice: BASE_MOMO_PRICE + (fillingLevel - 1) * 10,
+      makeMomoTime: BASE_MAKE_MOMO_TIME_MS / (1 + (steamerLevel - 1) * 0.2),
+      customerSpawnMin: 4000 / (1 + (cartLevel - 1) * 0.25),
       customerSpawnMax: 8000 / (1 + (cartLevel - 1) * 0.25),
     };
   }, [upgradeLevels]);
 
 
+  // --- Game State Actions ---
+  const startNextDay = () => {
+    setDay(prev => prev + 1);
+    setMoneyEarnedToday(0);
+    setCustomers([]);
+    setGameState('playing');
+    notify.info(`Day ${day + 1} has begun!`);
+  };
+
+  const restartGame = () => {
+    setMoney(INITIAL_STATE.money);
+    setFlour(INITIAL_STATE.flour);
+    setFilling(INITIAL_STATE.filling);
+    setMomoStock(INITIAL_STATE.momoStock);
+    setDay(INITIAL_STATE.day);
+    setUpgradeLevels(INITIAL_STATE.upgradeLevels);
+    setMoneyEarnedToday(0);
+    setCustomers([]);
+    setGameState('playing');
+    notify.success("New game started!");
+  };
+
+
   // --- Game Actions ---
-  const buyIngredients = () => { /* ... no changes ... */ };
+  const buyIngredients = () => {
+    const cost = 25;
+    if (money >= cost) {
+      setMoney(prev => prev - cost);
+      setFlour(prev => prev + 5);
+      setFilling(prev => prev + 5);
+      notify.success("Purchased 5 flour and 5 fillings.");
+    } else {
+      notify.error("Not enough money for ingredients!");
+    }
+  };
 
   const makeMomo = useCallback(() => {
-    const makeMomoTime = derivedValues.makeMomoTime; // Use derived value
+    const makeMomoTime = derivedValues.makeMomoTime;
     if (flour > 0 && filling > 0 && !isMakingMomo) {
       setIsMakingMomo(true);
       setMakingProgress(0);
@@ -93,17 +141,18 @@ export function useGameLogic({ notify }) {
   }, [flour, filling, isMakingMomo, notify, derivedValues.makeMomoTime]);
 
   const serveCustomer = (customerId, customerRef) => {
-    const momoPrice = derivedValues.momoPrice; // Use derived value
-    if (momoStock > 0) {
-      setMomoStock(prev => prev - 10);
+    const momoPrice = derivedValues.momoPrice;
+    if (momoStock >= SERVING_SIZE) {
+      setMomoStock(prev => prev - SERVING_SIZE);
       setMoney(prev => prev + momoPrice);
+      setMoneyEarnedToday(prev => prev + momoPrice); // Track daily progress
       setCustomers(prev => prev.filter(c => c.id !== customerId));
       if (customerRef.current) {
         const rect = customerRef.current.getBoundingClientRect();
         setLastServedInfo({ id: customerId, x: rect.left, y: rect.top, amount: momoPrice });
       }
     } else {
-      notify.warning("No momos in stock!");
+      notify.warning(`Not enough momos for a full plate! (Need ${SERVING_SIZE})`);
     }
   };
 
@@ -126,23 +175,56 @@ export function useGameLogic({ notify }) {
     }
   };
 
-  // --- Game Loop Effects ---
+  // --- Game Loop and State Checking Effects ---
   useEffect(() => {
+    if (gameState !== 'playing') return; // Stop spawning customers if game is paused
+
     const spawnCustomer = () => {
       const newCustomer = { id: Date.now(), patience: 100, spawnTime: Date.now() };
-      setCustomers(prev => [...prev, newCustomer]);
+      setCustomers(prev => [...prev, newCustomer].slice(0, 8)); // Cap customers at 8
     };
     const randomInterval = Math.random() * (derivedValues.customerSpawnMax - derivedValues.customerSpawnMin) + derivedValues.customerSpawnMin;
     const intervalId = setInterval(spawnCustomer, randomInterval);
     return () => clearInterval(intervalId);
-  }, [derivedValues.customerSpawnMin, derivedValues.customerSpawnMax]);
+  }, [gameState, derivedValues.customerSpawnMin, derivedValues.customerSpawnMax]);
 
-  useEffect(() => { /* ... no changes ... */ }, []);
+  useEffect(() => {
+    if (gameState !== 'playing') return; // Stop patience drain if game is paused
+    
+    const patienceInterval = setInterval(() => {
+      setCustomers(currentCustomers =>
+        currentCustomers
+          .map(c => {
+            const timeElapsed = Date.now() - c.spawnTime;
+            const newPatience = 100 - (timeElapsed / 150);
+            return { ...c, patience: Math.max(0, newPatience) };
+          })
+          .filter(c => c.patience > 0)
+      );
+    }, 100);
+    return () => clearInterval(patienceInterval);
+  }, [gameState]);
+
+  // Effect to check for win/loss conditions
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+
+    if (moneyEarnedToday >= dailyGoal) {
+      setGameState('day_complete');
+      notify.success(`Day ${day} complete! Goal reached.`);
+    }
+
+    const canContinue = money >= 25 || flour > 0 || filling > 0 || momoStock >= SERVING_SIZE;
+    if (!canContinue) {
+      setGameState('game_over');
+      notify.error("Game Over! You've run out of resources.");
+    }
+  }, [money, moneyEarnedToday, dailyGoal, flour, filling, momoStock, day, notify, gameState]);
 
   return {
     money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
-    upgradeLevels, // Export upgrade levels
-    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, // Export purchase function
+    upgradeLevels, gameState, dailyGoal, moneyEarnedToday,
+    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame,
   };
 }
 
