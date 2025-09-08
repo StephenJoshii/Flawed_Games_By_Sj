@@ -1,137 +1,113 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-// --- Game Constants ---
-const CONSTANTS = {
-  INITIAL_MONEY: 100,
-  INITIAL_FLOUR: 5,
-  INITIAL_FILLING: 5,
-  INITIAL_MOMO_STOCK: 20,
-  INGREDIENT_COST: 25,
-  INGREDIENTS_PER_PURCHASE: 5,
-  MOMOS_PER_BATCH: 10,
-  MOMO_PRICE: 50,
-  MAKE_MOMO_TIME_MS: 3000, // 3 seconds
-  CUSTOMER_SPAWN_MIN_MS: 3000, // 3 seconds
-  CUSTOMER_SPAWN_MAX_MS: 8000, // 8 seconds
-  CUSTOMER_PATIENCE_SECONDS: 15,
-};
+// --- Game Configuration ---
+const INGREDIENT_COST = 25;
+const INGREDIENTS_PER_PURCHASE = 5;
+const MOMOS_PER_BATCH = 10;
+const MOMO_PRICE = 50;
+const MAKE_MOMO_TIME_MS = 3000;
+const CUSTOMER_SPAWN_MIN_MS = 4000;
+const CUSTOMER_SPAWN_MAX_MS = 8000;
+const CUSTOMER_PATIENCE_MS = 15000;
 
-export const useGameLogic = () => {
-  // --- Game State ---
-  const [money, setMoney] = useState(CONSTANTS.INITIAL_MONEY);
-  const [flour, setFlour] = useState(CONSTANTS.INITIAL_FLOUR);
-  const [filling, setFilling] = useState(CONSTANTS.INITIAL_FILLING);
-  const [momoStock, setMomoStock] = useState(CONSTANTS.INITIAL_MOMO_STOCK);
+// The hook now accepts a `notify` function for showing toasts
+export function useGameLogic({ notify }) {
+  // --- Core Game State ---
+  const [money, setMoney] = useState(100);
+  const [flour, setFlour] = useState(5);
+  const [filling, setFilling] = useState(5);
+  const [momoStock, setMomoStock] = useState(20);
   const [day, setDay] = useState(1);
   const [customers, setCustomers] = useState([]);
   const [isMakingMomo, setIsMakingMomo] = useState(false);
+  const [makingProgress, setMakingProgress] = useState(0);
+  const [lastServedInfo, setLastServedInfo] = useState(null); // Tracks last served customer for animation
 
-  // useRef is used to keep track of timers without causing re-renders.
-  const customerSpawnTimer = useRef(null);
+  // --- Core Game Actions ---
 
-  // --- Game Actions ---
-
-  /**
-   * Buys ingredients if the player has enough money.
-   */
-  const buyIngredients = useCallback(() => {
-    if (money >= CONSTANTS.INGREDIENT_COST) {
-      setMoney(prev => prev - CONSTANTS.INGREDIENT_COST);
-      setFlour(prev => prev + CONSTANTS.INGREDIENTS_PER_PURCHASE);
-      setFilling(prev => prev + CONSTANTS.INGREDIENTS_PER_PURCHASE);
+  const buyIngredients = () => {
+    if (money >= INGREDIENT_COST) {
+      setMoney(prev => prev - INGREDIENT_COST);
+      setFlour(prev => prev + INGREDIENTS_PER_PURCHASE);
+      setFilling(prev => prev + INGREDIENTS_PER_PURCHASE);
+      notify.success("Ingredients Purchased!");
     } else {
-      console.warn("Not enough money for ingredients!");
+      notify.error("Not enough money!");
     }
-  }, [money]);
+  };
 
-  /**
-   * Creates a batch of momos if there are enough ingredients.
-   */
   const makeMomo = useCallback(() => {
-    if (flour >= 1 && filling >= 1 && !isMakingMomo) {
+    if (flour > 0 && filling > 0 && !isMakingMomo) {
       setIsMakingMomo(true);
+      setMakingProgress(0);
       setFlour(prev => prev - 1);
       setFilling(prev => prev - 1);
 
-      setTimeout(() => {
-        setMomoStock(prev => prev + CONSTANTS.MOMOS_PER_BATCH);
-        setIsMakingMomo(false);
-      }, CONSTANTS.MAKE_MOMO_TIME_MS);
-    } else {
-      console.warn("Not enough ingredients or already making momos!");
+      const interval = setInterval(() => {
+        setMakingProgress(prev => {
+          const newProgress = prev + 100 / (MAKE_MOMO_TIME_MS / 100);
+          if (newProgress >= 100) {
+            clearInterval(interval);
+            setMomoStock(stock => stock + MOMOS_PER_BATCH);
+            setIsMakingMomo(false);
+            notify.success("10 fresh momos are ready!");
+            return 100;
+          }
+          return newProgress;
+        });
+      }, 100);
+    } else if (!isMakingMomo) {
+        notify.warning("Not enough ingredients!");
     }
-  }, [flour, filling, isMakingMomo]);
-  
-  /**
-   * Serves a plate of momos to a customer.
-   * @param {string} customerId The ID of the customer to serve.
-   */
-  const serveCustomer = useCallback((customerId) => {
+  }, [flour, filling, isMakingMomo, notify]);
+
+
+  const serveCustomer = (customerId, customerRef) => {
     if (momoStock > 0) {
-      // Assuming 1 plate = 1 unit from stock for simplicity
-      setMomoStock(prev => prev - 1); 
-      setMoney(prev => prev + CONSTANTS.MOMO_PRICE);
-      setCustomers(prevCustomers => prevCustomers.filter(c => c.id !== customerId));
+      setMomoStock(prev => prev - 1);
+      setMoney(prev => prev + MOMO_PRICE);
+      setCustomers(prev => prev.filter(c => c.id !== customerId));
+      
+      // Get position of the customer card for the animation
+      if (customerRef.current) {
+        const rect = customerRef.current.getBoundingClientRect();
+        setLastServedInfo({ id: customerId, x: rect.left, y: rect.top });
+      }
+
     } else {
-      console.warn("No momos to serve!");
+      notify.warning("No momos in stock!");
     }
-  }, [momoStock]);
-
-  // --- Game Loop & Timers ---
-
-  // Spawns new customers at random intervals.
-  useEffect(() => {
-    const spawn = () => {
-      const newCustomer = {
-        id: crypto.randomUUID(),
-        patience: CONSTANTS.CUSTOMER_PATIENCE_SECONDS,
-      };
-      setCustomers(prev => [...prev, newCustomer]);
-
-      const nextSpawnTime = Math.random() * (CONSTANTS.CUSTOMER_SPAWN_MAX_MS - CONSTANTS.CUSTOMER_SPAWN_MIN_MS) + CONSTANTS.CUSTOMER_SPAWN_MIN_MS;
-      customerSpawnTimer.current = setTimeout(spawn, nextSpawnTime);
-    };
-
-    customerSpawnTimer.current = setTimeout(spawn, CONSTANTS.CUSTOMER_SPAWN_MIN_MS);
-
-    // Cleanup timer on component unmount.
-    return () => clearTimeout(customerSpawnTimer.current);
-  }, []); 
-
-  // Updates customer patience every second.
-  useEffect(() => {
-    if (customers.length === 0) return;
-
-    const patienceTimer = setInterval(() => {
-      setCustomers(prevCustomers => 
-        prevCustomers
-          .map(c => ({ ...c, patience: c.patience - 1 })) 
-          .filter(c => c.patience > 0) // Remove customers whose patience ran out
-      );
-    }, 1000);
-
-    return () => clearInterval(patienceTimer);
-  }, [customers]);
-
-
-  // --- Exposed State & Actions ---
-  return {
-    // State
-    money,
-    flour,
-    filling,
-    momoStock,
-    day,
-    customers,
-    isMakingMomo,
-    
-    // Actions
-    buyIngredients,
-    makeMomo,
-    serveCustomer,
-
-    // Constants
-    CONSTANTS,
   };
-};
+
+  // --- Game Loop Effects (No changes here) ---
+  useEffect(() => {
+    const spawnCustomer = () => {
+      const newCustomer = { id: Date.now(), patience: 100, spawnTime: Date.now() };
+      setCustomers(prev => [...prev, newCustomer]);
+    };
+    const randomInterval = Math.random() * (CUSTOMER_SPAWN_MAX_MS - CUSTOMER_SPAWN_MIN_MS) + CUSTOMER_SPAWN_MIN_MS;
+    const intervalId = setInterval(spawnCustomer, randomInterval);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCustomers(currentCustomers =>
+        currentCustomers.map(c => {
+          const elapsedTime = Date.now() - c.spawnTime;
+          const newPatience = 100 - (elapsedTime / CUSTOMER_PATIENCE_MS) * 100;
+          if (newPatience <= 0) return null;
+          return { ...c, patience: newPatience };
+        }).filter(Boolean)
+      );
+    }, 100);
+    return () => clearInterval(timer);
+  }, []);
+
+
+  return {
+    money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
+    buyIngredients, makeMomo, serveCustomer,
+  };
+}
 

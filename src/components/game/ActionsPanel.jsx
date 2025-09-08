@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ShoppingCart, ChefHat, Wheat, Leaf } from 'lucide-react';
 
@@ -14,7 +14,7 @@ const IngredientStat = ({ name, value, icon: Icon }) => (
   </div>
 );
 
-export function ActionsPanel({ flour, filling, isMakingMomo, onBuyIngredients, onMakeMomo }) {
+export function ActionsPanel({ flour, filling, isMakingMomo, makingProgress, onBuyIngredients, onMakeMomo }) {
   const canMakeMomo = flour > 0 && filling > 0;
 
   return (
@@ -34,7 +34,11 @@ export function ActionsPanel({ flour, filling, isMakingMomo, onBuyIngredients, o
               <ChefHat className="mr-2 h-4 w-4" /> {isMakingMomo ? "Making..." : "Make Momos (10 pcs)"}
             </Button>
           </div>
-          {isMakingMomo && <Progress value={100} className="mt-2 h-2 animate-pulse" />}
+          {isMakingMomo && (
+            <div className="mt-2">
+              <Progress value={makingProgress} className="h-2" />
+            </div>
+          )}
         </div>
 
         <div>
