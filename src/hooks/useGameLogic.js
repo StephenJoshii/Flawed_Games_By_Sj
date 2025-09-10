@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // --- Base Game Configuration ---
 const BASE_MOMO_PRICE = 50;
 const BASE_MAKE_MOMO_TIME_MS = 3000;
 const SERVING_SIZE = 10;
+const CUSTOMER_PATIENCE_MS = 15000; // 15 seconds
 const SAVE_GAME_KEY = 'momoTycoonSaveData';
 
 // --- Upgrade Definitions ---
@@ -37,6 +38,8 @@ const INITIAL_STATE = {
   filling: 5,
   momoStock: 20,
   day: 1,
+  reputation: 80,
+  customers: [],
   upgradeLevels: {
     steamer: 1,
     filling: 1,
@@ -50,218 +53,230 @@ const loadGame = () => {
     const savedData = localStorage.getItem(SAVE_GAME_KEY);
     if (savedData) {
       const parsed = JSON.parse(savedData);
-      // Basic validation to ensure saved data is not malformed
-      if (parsed.upgradeLevels && parsed.day) {
-        return { ...INITIAL_STATE, ...parsed };
+      if (parsed.upgradeLevels && typeof parsed.reputation === 'number') {
+        const loadedState = { ...INITIAL_STATE, ...parsed };
+        loadedState.customers = [];
+        return loadedState;
       }
     }
   } catch (error) {
-    console.error("Failed to load game data:", error);
+    console.error("Failed to load or parse game data, starting fresh:", error);
   }
   return INITIAL_STATE;
 };
 
 export function useGameLogic({ notify }) {
-  // --- Initialize state from localStorage or initial state ---
   const [gameStateData, setGameStateData] = useState(loadGame);
+  const { money, flour, filling, momoStock, day, upgradeLevels, customers } = gameStateData;
+  const reputation = gameStateData.reputation; // ✅ reputation always read live
 
-  const { money, flour, filling, momoStock, day, upgradeLevels } = gameStateData;
-
-  const setMoney = (updater) => setGameStateData(prev => ({ ...prev, money: typeof updater === 'function' ? updater(prev.money) : updater }));
-  const setFlour = (updater) => setGameStateData(prev => ({ ...prev, flour: typeof updater === 'function' ? updater(prev.flour) : updater }));
-  const setFilling = (updater) => setGameStateData(prev => ({ ...prev, filling: typeof updater === 'function' ? updater(prev.filling) : updater }));
-  const setMomoStock = (updater) => setGameStateData(prev => ({ ...prev, momoStock: typeof updater === 'function' ? updater(prev.momoStock) : updater }));
-  const setDay = (updater) => setGameStateData(prev => ({ ...prev, day: typeof updater === 'function' ? updater(prev.day) : updater }));
-  const setUpgradeLevels = (updater) => setGameStateData(prev => ({ ...prev, upgradeLevels: typeof updater === 'function' ? updater(prev.upgradeLevels) : updater }));
-
-  // --- Non-persistent state ---
-  const [customers, setCustomers] = useState([]);
   const [isMakingMomo, setIsMakingMomo] = useState(false);
   const [makingProgress, setMakingProgress] = useState(0);
   const [lastServedInfo, setLastServedInfo] = useState(null);
   const [gameState, setGameState] = useState('playing');
   const [moneyEarnedToday, setMoneyEarnedToday] = useState(0);
+  
+  const notifyRef = useRef(notify);
+  useEffect(() => {
+    notifyRef.current = notify;
+  }, [notify]);
 
   const dailyGoal = useMemo(() => 200 + (day - 1) * 100, [day]);
 
-  // --- Derived Game Values (based on upgrades) ---
   const derivedValues = useMemo(() => {
     const steamerLevel = upgradeLevels.steamer;
     const fillingLevel = upgradeLevels.filling;
     const cartLevel = upgradeLevels.cart;
+    const reputationModifier = 1 + ((50 - reputation) / 100); // ✅ uses live reputation
 
     return {
       momoPrice: BASE_MOMO_PRICE + (fillingLevel - 1) * 10,
       makeMomoTime: BASE_MAKE_MOMO_TIME_MS / (1 + (steamerLevel - 1) * 0.2),
-      customerSpawnMin: 4000 / (1 + (cartLevel - 1) * 0.25),
-      customerSpawnMax: 8000 / (1 + (cartLevel - 1) * 0.25),
+      customerSpawnMin: Math.max(500, (4000 / (1 + (cartLevel - 1) * 0.25)) * reputationModifier),
+      customerSpawnMax: Math.max(1000, (8000 / (1 + (cartLevel - 1) * 0.25)) * reputationModifier),
     };
-  }, [upgradeLevels]);
-
-  // --- Game State Actions ---
-  const startNextDay = () => {
-    setDay(prev => prev + 1);
+  }, [upgradeLevels, reputation]); // ✅ reputation in deps
+  
+  const startNextDay = useCallback(() => {
+    setGameStateData(prev => ({ ...prev, day: prev.day + 1, customers: [] }));
     setMoneyEarnedToday(0);
-    setCustomers([]);
     setGameState('playing');
-    notify.info(`Day ${day + 1} has begun!`);
-  };
+    notifyRef.current.info(`Day ${day + 1} has begun!`);
+  }, [day]);
 
-  const restartGame = () => {
+  const restartGame = useCallback(() => {
     setGameStateData(INITIAL_STATE);
     setMoneyEarnedToday(0);
-    setCustomers([]);
     setGameState('playing');
-    notify.success("New game started!");
-  };
-
-  const resetProgress = () => {
+    notifyRef.current.success("New game started!");
+  }, []);
+  
+  const resetProgress = useCallback(() => {
     localStorage.removeItem(SAVE_GAME_KEY);
     restartGame();
-    notify.info("All progress has been reset.");
-  };
+  }, [restartGame]);
 
-  // --- Game Actions ---
-  const buyIngredients = () => {
-    const cost = 25;
-    if (money >= cost) {
-      setMoney(prev => prev - cost);
-      setFlour(prev => prev + 5);
-      setFilling(prev => prev + 5);
-      notify.success("Purchased 5 flour and 5 fillings.");
-    } else {
-      notify.error("Not enough money for ingredients!");
-    }
-  };
+  const buyIngredients = useCallback(() => {
+    setGameStateData(prev => {
+      if (prev.money >= 25) {
+        notifyRef.current.success("Purchased 5 flour and 5 fillings.");
+        return { ...prev, money: prev.money - 25, flour: prev.flour + 5, filling: prev.filling + 5 };
+      }
+      notifyRef.current.error("Not enough money for ingredients!");
+      return prev;
+    });
+  }, []);
 
   const makeMomo = useCallback(() => {
-    const makeMomoTime = derivedValues.makeMomoTime;
-    if (flour > 0 && filling > 0 && !isMakingMomo) {
-      setIsMakingMomo(true);
-      setMakingProgress(0);
-      setFlour(prev => prev - 1);
-      setFilling(prev => prev - 1);
+    if (isMakingMomo) return;
 
-      const interval = setInterval(() => {
-        setMakingProgress(prev => {
-          const newProgress = prev + 100 / (makeMomoTime / 100);
-          if (newProgress >= 100) {
-            clearInterval(interval);
-            setMomoStock(stock => stock + 10);
-            setIsMakingMomo(false);
-            notify.success("10 fresh momos are ready!");
-            return 100;
-          }
-          return newProgress;
-        });
-      }, 100);
-    } else if (!isMakingMomo) {
-      notify.warning("Not enough ingredients!");
-    }
-  }, [flour, filling, isMakingMomo, notify, derivedValues.makeMomoTime, setFlour, setFilling, setMomoStock]);
-
-  const serveCustomer = (customerId, customerRef) => {
-    const momoPrice = derivedValues.momoPrice;
-    if (momoStock >= SERVING_SIZE) {
-      setMomoStock(prev => prev - SERVING_SIZE);
-      setMoney(prev => prev + momoPrice);
-      setMoneyEarnedToday(prev => prev + momoPrice);
-      setCustomers(prev => prev.filter(c => c.id !== customerId));
-      if (customerRef.current) {
-        const rect = customerRef.current.getBoundingClientRect();
-        setLastServedInfo({ id: customerId, x: rect.left, y: rect.top, amount: momoPrice });
+    setGameStateData(prev => {
+      if (prev.flour < 1 || prev.filling < 1) {
+        notifyRef.current.warning("Not enough ingredients to make momos!");
+        return prev;
       }
-    } else {
-      notify.warning(`Not enough momos for a full plate! (Need ${SERVING_SIZE})`);
-    }
-  };
+      
+      setIsMakingMomo(true);
+      
+      const startTime = Date.now();
+      const interval = setInterval(() => {
+        const elapsedTime = Date.now() - startTime;
+        const progress = Math.min(100, (elapsedTime / derivedValues.makeMomoTime) * 100);
+        setMakingProgress(progress);
 
-  const purchaseUpgrade = (upgradeId) => {
-    const upgrade = UPGRADES_CONFIG[upgradeId];
-    const currentLevel = upgradeLevels[upgradeId];
+        if (progress >= 100) {
+          clearInterval(interval);
+          setGameStateData(p => ({ ...p, momoStock: p.momoStock + 10 }));
+          setIsMakingMomo(false);
+          setMakingProgress(0);
+          notifyRef.current.success("A fresh batch of 10 momos is ready!");
+        }
+      }, 50);
 
-    if (currentLevel >= upgrade.maxLevel) {
-      notify.info("Already at max level!");
-      return;
-    }
+      return { ...prev, flour: prev.flour - 1, filling: prev.filling - 1 };
+    });
+  }, [isMakingMomo, derivedValues.makeMomoTime]);
 
-    const cost = upgrade.getCost(currentLevel);
-    if (money >= cost) {
-      setMoney(prev => prev - cost);
-      setUpgradeLevels(prev => ({ ...prev, [upgradeId]: prev[upgradeId] + 1 }));
-      notify.success(`${upgrade.name} upgraded to Level ${currentLevel + 1}!`);
-    } else {
-      notify.error("Not enough money for this upgrade.");
-    }
-  };
+  const serveCustomer = useCallback((customerId, customerRef) => {
+    const momoPrice = derivedValues.momoPrice;
+    setGameStateData(prev => {
+      if (prev.momoStock >= SERVING_SIZE) {
+        setMoneyEarnedToday(m => m + momoPrice);
+        if (customerRef.current) {
+          const rect = customerRef.current.getBoundingClientRect();
+          setLastServedInfo({ id: customerId, x: rect.left, y: rect.top, amount: momoPrice });
+        }
+        return {
+          ...prev,
+          momoStock: prev.momoStock - SERVING_SIZE,
+          money: prev.money + momoPrice,
+          reputation: Math.min(100, prev.reputation + 1),
+          customers: prev.customers.filter(c => c.id !== customerId),
+        };
+      }
+      notifyRef.current.warning(`Not enough momos for a full plate! (Need ${SERVING_SIZE})`);
+      return prev;
+    });
+  }, [derivedValues.momoPrice]);
 
-  // --- Auto-Save Effect ---
+  const purchaseUpgrade = useCallback((upgradeId) => {
+    setGameStateData(prev => {
+      const config = UPGRADES_CONFIG[upgradeId];
+      const currentLevel = prev.upgradeLevels[upgradeId];
+      if (currentLevel >= config.maxLevel) {
+        notifyRef.current.info("This upgrade is already at max level!");
+        return prev;
+      }
+      const cost = config.getCost(currentLevel + 1);
+      if (prev.money >= cost) {
+        notifyRef.current.success(`${config.name} upgraded to Level ${currentLevel + 1}!`);
+        return { ...prev, money: prev.money - cost, upgradeLevels: { ...prev.upgradeLevels, [upgradeId]: currentLevel + 1 } };
+      }
+      notifyRef.current.error("Not enough money for this upgrade!");
+      return prev;
+    });
+  }, []);
+
+  // --- Main Game Loop Effects ---
+
   useEffect(() => {
-    try {
-      // We only save the persistent parts of the state
-      const dataToSave = {
-        money,
-        flour,
-        filling,
-        momoStock,
-        day,
-        upgradeLevels,
-      };
-      localStorage.setItem(SAVE_GAME_KEY, JSON.stringify(dataToSave));
-    } catch (error) {
-      console.error("Failed to save game data:", error);
-    }
-  }, [money, flour, filling, momoStock, day, upgradeLevels]);
+    localStorage.setItem(SAVE_GAME_KEY, JSON.stringify(gameStateData));
+  }, [gameStateData]);
 
-  // --- Game Loop and State Checking Effects ---
   useEffect(() => {
     if (gameState !== 'playing') return;
-
-    const spawnCustomer = () => {
-      const newCustomer = { id: Date.now(), patience: 100, spawnTime: Date.now() };
-      setCustomers(prev => [...prev, newCustomer].slice(0, 8));
+    let customerTimeout;
+    const spawnLoop = () => {
+      const { customerSpawnMin, customerSpawnMax } = derivedValues;
+      const delay = Math.random() * (customerSpawnMax - customerSpawnMin) + customerSpawnMin;
+      customerTimeout = setTimeout(() => {
+        const newCustomer = { 
+          id: Date.now() + Math.random(), 
+          spawnTime: Date.now(),
+        };
+        setGameStateData(prev => ({ ...prev, customers: [...prev.customers, newCustomer] }));
+        spawnLoop();
+      }, delay);
     };
-    const randomInterval = Math.random() * (derivedValues.customerSpawnMax - derivedValues.customerSpawnMin) + derivedValues.customerSpawnMin;
-    const intervalId = setInterval(spawnCustomer, randomInterval);
-    return () => clearInterval(intervalId);
-  }, [gameState, derivedValues.customerSpawnMin, derivedValues.customerSpawnMax]);
+    spawnLoop();
+    return () => clearTimeout(customerTimeout);
+  }, [gameState, derivedValues]);
 
+  // *** Game Tick Loop ***
   useEffect(() => {
     if (gameState !== 'playing') return;
-    
-    const patienceInterval = setInterval(() => {
-      setCustomers(currentCustomers =>
-        currentCustomers
-          .map(c => {
-            const timeElapsed = Date.now() - c.spawnTime;
-            const newPatience = 100 - (timeElapsed / 150);
-            return { ...c, patience: Math.max(0, newPatience) };
+
+    const gameTick = setInterval(() => {
+      setGameStateData(prev => {
+        const now = Date.now();
+        const departingCustomers = [];
+
+        const updatedCustomers = prev.customers
+          .map(customer => {
+            const elapsedTime = now - customer.spawnTime;
+            const patience = Math.max(0, 100 - (elapsedTime / CUSTOMER_PATIENCE_MS) * 100);
+            return { ...customer, patience };
           })
-          .filter(c => c.patience > 0)
-      );
-    }, 100);
-    return () => clearInterval(patienceInterval);
-  }, [gameState]);
+          .filter(customer => {
+            if (customer.patience > 0) {
+              return true;
+            }
+            departingCustomers.push(customer);
+            return false;
+          });
 
+        if (departingCustomers.length > 0) {
+          const departingCount = departingCustomers.length;
+          const reputationPenalty = departingCount * 5;
+          notifyRef.current.error(`${departingCount} customer${departingCount > 1 ? 's' : ''} left angry!`);
+          return {
+            ...prev,
+            reputation: Math.max(0, prev.reputation - reputationPenalty),
+            customers: updatedCustomers,
+          };
+        }
+        
+        return { ...prev, customers: updatedCustomers };
+      });
+    }, 100);
+
+    return () => clearInterval(gameTick);
+  }, [gameState]);
+  
   useEffect(() => {
     if (gameState !== 'playing') return;
-
     if (moneyEarnedToday >= dailyGoal) {
       setGameState('day_complete');
-      notify.success(`Day ${day} complete! Goal reached.`);
-    }
-
-    const canContinue = money >= 25 || flour > 0 || filling > 0 || momoStock >= SERVING_SIZE;
-    if (!canContinue) {
+      notifyRef.current.success(`Day ${day} complete! You beat the goal!`);
+    } else if (money < 25 && flour < 1 && filling < 1 && momoStock < SERVING_SIZE) {
       setGameState('game_over');
-      notify.error("Game Over! You've run out of resources.");
+      notifyRef.current.error("Game Over! You've run out of resources.");
     }
-  }, [money, moneyEarnedToday, dailyGoal, flour, filling, momoStock, day, notify, gameState]);
+  }, [gameStateData, moneyEarnedToday, dailyGoal, day]);
 
   return {
     money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
-    upgradeLevels, gameState, dailyGoal, moneyEarnedToday,
+    upgradeLevels, gameState, dailyGoal, moneyEarnedToday, reputation,
     buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame, resetProgress,
   };
 }
-
