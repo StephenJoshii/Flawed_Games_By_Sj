@@ -11,7 +11,7 @@ function App() {
   const {
     money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
     upgradeLevels, gameState, dailyGoal, moneyEarnedToday,
-    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame,
+    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame, resetProgress,
   } = useGameLogic({ notify: toast });
 
   return (
@@ -41,6 +41,7 @@ function App() {
                 makingProgress={makingProgress}
                 onBuyIngredients={buyIngredients}
                 onMakeMomo={makeMomo}
+                onResetProgress={resetProgress}
               />
               <UpgradesPanel
                 upgradeLevels={upgradeLevels}

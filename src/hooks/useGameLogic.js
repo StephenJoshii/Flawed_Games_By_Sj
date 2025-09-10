@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 // --- Base Game Configuration ---
 const BASE_MOMO_PRICE = 50;
 const BASE_MAKE_MOMO_TIME_MS = 3000;
-const SERVING_SIZE = 10; // A full plate of momos
+const SERVING_SIZE = 10;
+const SAVE_GAME_KEY = 'momoTycoonSaveData';
 
 // --- Upgrade Definitions ---
 export const UPGRADES_CONFIG = {
@@ -43,25 +44,45 @@ const INITIAL_STATE = {
   },
 };
 
+// --- Helper function to load game state ---
+const loadGame = () => {
+  try {
+    const savedData = localStorage.getItem(SAVE_GAME_KEY);
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      // Basic validation to ensure saved data is not malformed
+      if (parsed.upgradeLevels && parsed.day) {
+        return { ...INITIAL_STATE, ...parsed };
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load game data:", error);
+  }
+  return INITIAL_STATE;
+};
+
 export function useGameLogic({ notify }) {
-  // --- Core Game State ---
-  const [money, setMoney] = useState(INITIAL_STATE.money);
-  const [flour, setFlour] = useState(INITIAL_STATE.flour);
-  const [filling, setFilling] = useState(INITIAL_STATE.filling);
-  const [momoStock, setMomoStock] = useState(INITIAL_STATE.momoStock);
-  const [day, setDay] = useState(INITIAL_STATE.day);
+  // --- Initialize state from localStorage or initial state ---
+  const [gameStateData, setGameStateData] = useState(loadGame);
+
+  const { money, flour, filling, momoStock, day, upgradeLevels } = gameStateData;
+
+  const setMoney = (updater) => setGameStateData(prev => ({ ...prev, money: typeof updater === 'function' ? updater(prev.money) : updater }));
+  const setFlour = (updater) => setGameStateData(prev => ({ ...prev, flour: typeof updater === 'function' ? updater(prev.flour) : updater }));
+  const setFilling = (updater) => setGameStateData(prev => ({ ...prev, filling: typeof updater === 'function' ? updater(prev.filling) : updater }));
+  const setMomoStock = (updater) => setGameStateData(prev => ({ ...prev, momoStock: typeof updater === 'function' ? updater(prev.momoStock) : updater }));
+  const setDay = (updater) => setGameStateData(prev => ({ ...prev, day: typeof updater === 'function' ? updater(prev.day) : updater }));
+  const setUpgradeLevels = (updater) => setGameStateData(prev => ({ ...prev, upgradeLevels: typeof updater === 'function' ? updater(prev.upgradeLevels) : updater }));
+
+  // --- Non-persistent state ---
   const [customers, setCustomers] = useState([]);
   const [isMakingMomo, setIsMakingMomo] = useState(false);
   const [makingProgress, setMakingProgress] = useState(0);
   const [lastServedInfo, setLastServedInfo] = useState(null);
-
-  // --- Game Status State ---
-  const [gameState, setGameState] = useState('playing'); // 'playing', 'day_complete', 'game_over'
+  const [gameState, setGameState] = useState('playing');
   const [moneyEarnedToday, setMoneyEarnedToday] = useState(0);
-  const dailyGoal = useMemo(() => 200 + (day - 1) * 100, [day]);
 
-  // --- Upgrade State ---
-  const [upgradeLevels, setUpgradeLevels] = useState(INITIAL_STATE.upgradeLevels);
+  const dailyGoal = useMemo(() => 200 + (day - 1) * 100, [day]);
 
   // --- Derived Game Values (based on upgrades) ---
   const derivedValues = useMemo(() => {
@@ -77,7 +98,6 @@ export function useGameLogic({ notify }) {
     };
   }, [upgradeLevels]);
 
-
   // --- Game State Actions ---
   const startNextDay = () => {
     setDay(prev => prev + 1);
@@ -88,18 +108,18 @@ export function useGameLogic({ notify }) {
   };
 
   const restartGame = () => {
-    setMoney(INITIAL_STATE.money);
-    setFlour(INITIAL_STATE.flour);
-    setFilling(INITIAL_STATE.filling);
-    setMomoStock(INITIAL_STATE.momoStock);
-    setDay(INITIAL_STATE.day);
-    setUpgradeLevels(INITIAL_STATE.upgradeLevels);
+    setGameStateData(INITIAL_STATE);
     setMoneyEarnedToday(0);
     setCustomers([]);
     setGameState('playing');
     notify.success("New game started!");
   };
 
+  const resetProgress = () => {
+    localStorage.removeItem(SAVE_GAME_KEY);
+    restartGame();
+    notify.info("All progress has been reset.");
+  };
 
   // --- Game Actions ---
   const buyIngredients = () => {
@@ -138,14 +158,14 @@ export function useGameLogic({ notify }) {
     } else if (!isMakingMomo) {
       notify.warning("Not enough ingredients!");
     }
-  }, [flour, filling, isMakingMomo, notify, derivedValues.makeMomoTime]);
+  }, [flour, filling, isMakingMomo, notify, derivedValues.makeMomoTime, setFlour, setFilling, setMomoStock]);
 
   const serveCustomer = (customerId, customerRef) => {
     const momoPrice = derivedValues.momoPrice;
     if (momoStock >= SERVING_SIZE) {
       setMomoStock(prev => prev - SERVING_SIZE);
       setMoney(prev => prev + momoPrice);
-      setMoneyEarnedToday(prev => prev + momoPrice); // Track daily progress
+      setMoneyEarnedToday(prev => prev + momoPrice);
       setCustomers(prev => prev.filter(c => c.id !== customerId));
       if (customerRef.current) {
         const rect = customerRef.current.getBoundingClientRect();
@@ -175,13 +195,31 @@ export function useGameLogic({ notify }) {
     }
   };
 
+  // --- Auto-Save Effect ---
+  useEffect(() => {
+    try {
+      // We only save the persistent parts of the state
+      const dataToSave = {
+        money,
+        flour,
+        filling,
+        momoStock,
+        day,
+        upgradeLevels,
+      };
+      localStorage.setItem(SAVE_GAME_KEY, JSON.stringify(dataToSave));
+    } catch (error) {
+      console.error("Failed to save game data:", error);
+    }
+  }, [money, flour, filling, momoStock, day, upgradeLevels]);
+
   // --- Game Loop and State Checking Effects ---
   useEffect(() => {
-    if (gameState !== 'playing') return; // Stop spawning customers if game is paused
+    if (gameState !== 'playing') return;
 
     const spawnCustomer = () => {
       const newCustomer = { id: Date.now(), patience: 100, spawnTime: Date.now() };
-      setCustomers(prev => [...prev, newCustomer].slice(0, 8)); // Cap customers at 8
+      setCustomers(prev => [...prev, newCustomer].slice(0, 8));
     };
     const randomInterval = Math.random() * (derivedValues.customerSpawnMax - derivedValues.customerSpawnMin) + derivedValues.customerSpawnMin;
     const intervalId = setInterval(spawnCustomer, randomInterval);
@@ -189,7 +227,7 @@ export function useGameLogic({ notify }) {
   }, [gameState, derivedValues.customerSpawnMin, derivedValues.customerSpawnMax]);
 
   useEffect(() => {
-    if (gameState !== 'playing') return; // Stop patience drain if game is paused
+    if (gameState !== 'playing') return;
     
     const patienceInterval = setInterval(() => {
       setCustomers(currentCustomers =>
@@ -205,7 +243,6 @@ export function useGameLogic({ notify }) {
     return () => clearInterval(patienceInterval);
   }, [gameState]);
 
-  // Effect to check for win/loss conditions
   useEffect(() => {
     if (gameState !== 'playing') return;
 
@@ -224,7 +261,7 @@ export function useGameLogic({ notify }) {
   return {
     money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
     upgradeLevels, gameState, dailyGoal, moneyEarnedToday,
-    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame,
+    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame, resetProgress,
   };
 }
 

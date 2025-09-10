@@ -1,53 +1,52 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ShoppingCart, ChefHat, Wheat, Leaf } from 'lucide-react';
+import { ShoppingCart, CookingPot, Wheat, Beef, AlertTriangle } from "lucide-react";
 
-// Reusable component for displaying ingredient stock
-const IngredientStat = ({ name, value, icon: Icon }) => (
-  <div className="flex items-center justify-between p-3 bg-secondary rounded-lg">
-    <div className="flex items-center gap-3">
-      <Icon className="h-5 w-5 text-muted-foreground" />
-      <span className="font-medium">{name}</span>
-    </div>
-    <span className="font-bold text-lg">{value}</span>
-  </div>
-);
-
-export function ActionsPanel({ flour, filling, isMakingMomo, makingProgress, onBuyIngredients, onMakeMomo }) {
-  const canMakeMomo = flour > 0 && filling > 0;
-
+export function ActionsPanel({
+  flour,
+  filling,
+  isMakingMomo,
+  makingProgress,
+  onBuyIngredients,
+  onMakeMomo,
+  onResetProgress,
+}) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Game Controls</CardTitle>
-        <CardDescription>Manage your momo business.</CardDescription>
+        <CardTitle>Actions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div>
-          <h3 className="text-sm font-medium mb-2 text-muted-foreground">Actions</h3>
-          <div className="grid grid-cols-1 gap-2">
-            <Button onClick={onBuyIngredients}>
-              <ShoppingCart className="mr-2 h-4 w-4" /> Buy Ingredients (Rs. 25)
-            </Button>
-            <Button onClick={onMakeMomo} disabled={!canMakeMomo || isMakingMomo}>
-              <ChefHat className="mr-2 h-4 w-4" /> {isMakingMomo ? "Making..." : "Make Momos (10 pcs)"}
-            </Button>
+        <div className="flex items-center justify-around text-center">
+          <div className="flex flex-col items-center">
+            <Wheat className="h-8 w-8 text-yellow-600 mb-1" />
+            <span className="font-bold text-lg">{flour}</span>
+            <span className="text-xs text-muted-foreground">Flour</span>
           </div>
+          <div className="flex flex-col items-center">
+            <Beef className="h-8 w-8 text-red-600 mb-1" />
+            <span className="font-bold text-lg">{filling}</span>
+            <span className="text-xs text-muted-foreground">Filling</span>
+          </div>
+        </div>
+
+        <Button onClick={onBuyIngredients} className="w-full">
+          <ShoppingCart className="mr-2 h-4 w-4" /> Buy Ingredients (Rs. 25)
+        </Button>
+
+        <div>
+          <Button onClick={onMakeMomo} disabled={isMakingMomo} className="w-full">
+            <CookingPot className="mr-2 h-4 w-4" /> Make Momos (10 pcs)
+          </Button>
           {isMakingMomo && (
-            <div className="mt-2">
-              <Progress value={makingProgress} className="h-2" />
-            </div>
+            <Progress value={makingProgress} className="w-full h-2 mt-2" />
           )}
         </div>
 
-        <div>
-          <h3 className="text-sm font-medium my-2 text-muted-foreground">Ingredient Stock</h3>
-          <div className="space-y-2">
-            <IngredientStat name="Flour" value={flour} icon={Wheat} />
-            <IngredientStat name="Filling" value={filling} icon={Leaf} />
-          </div>
-        </div>
+        <Button onClick={onResetProgress} variant="destructive" className="w-full">
+            <AlertTriangle className="mr-2 h-4 w-4" /> Reset Progress
+        </Button>
       </CardContent>
     </Card>
   );
