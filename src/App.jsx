@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { HomePage } from "./pages/HomePage";
 import { MomoTycoon } from "./games/momo-tycoon/MomoTycoon";
+import { Twenty48 } from "./games/twenty48/Twenty48";
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/play/momo-tycoon" element={<MomoTycoon />} />
+          <Route path="/play/2048" element={<Twenty48 />} />
           {/* You will add routes for new games here in the future */}
         </Routes>
       </Router>
