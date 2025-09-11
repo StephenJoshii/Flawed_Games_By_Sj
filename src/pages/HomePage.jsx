@@ -24,14 +24,15 @@ export function HomePage() {
           </CardContent>
         </Card>
 
-        {/* Example of a future game card */}
-        <Card className="border-dashed">
-           <CardHeader>
-            <CardTitle className="text-muted-foreground">Bagh Chal</CardTitle>
-            <CardDescription className="text-muted-foreground">Classic Nepali strategy game. Coming soon!</CardDescription>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>2048</CardTitle>
+            <CardDescription>Slide and combine numbered tiles to reach the elusive 2048 tile in this classic puzzle game.</CardDescription>
           </CardHeader>
-           <CardContent className="flex-grow flex items-end">
-            <Button disabled className="w-full">Coming Soon</Button>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/2048" className="w-full">
+              <Button className="w-full">Play Now</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
