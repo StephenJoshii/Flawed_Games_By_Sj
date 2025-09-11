@@ -5,7 +5,7 @@ import { GameHeader } from './components/GameHeader';
 import { Button } from '@/components/ui/button';
 
 export function Twenty48() {
-  const { grid, score, isGameOver, restartGame, move } = use2048Logic();
+  const { grid, score, bestScore, isGameOver, restartGame, move } = use2048Logic();
 
   // --- Input Handling ---
   const touchStartRef = useRef({ x: 0, y: 0 });
@@ -51,7 +51,7 @@ export function Twenty48() {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <GameHeader score={score} onRestart={restartGame} />
+      <GameHeader score={score} bestScore={bestScore} onRestart={restartGame} />
       <div className="relative">
         <GameBoard grid={grid} />
         {isGameOver && (

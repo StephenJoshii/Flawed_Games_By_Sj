@@ -14,24 +14,23 @@ const TILE_COLORS = {
   default: "bg-[#3c3a32] text-white",
 };
 
+// Renders a single, animated tile on the game board.
 export function Tile({ value, x, y, isNew, isMerged }) {
   const colorClasses = TILE_COLORS[value] || TILE_COLORS.default;
-  const positionClasses = `absolute transition-all duration-200 ease-in-out`;
+  const positionClasses = `absolute transition-transform duration-200 ease-in-out`;
   
-  // Apply animation classes based on the tile's state
   const animationClass = isNew ? 'animate-tile-spawn' : isMerged ? 'animate-tile-merge' : '';
-  
   const fontSizeClass = value > 1000 ? 'text-3xl' : value > 100 ? 'text-4xl' : 'text-5xl';
 
   return (
     <div
       className={`${positionClasses} ${colorClasses} ${animationClass} w-[100px] h-[100px] rounded-md flex items-center justify-center font-bold`}
       style={{
-        top: `${y * 116 + 16}px`, // 100px tile + 16px gap
-        left: `${x * 116 + 16}px`,
+        transform: `translate(${x * 116}px, ${y * 116}px)`, // Uses translate for smooth GPU-accelerated animation
       }}
     >
-      <span className={fontSizeClass}>{value > 0 ? value : ""}</span>
+      <span className={fontSizeClass}>{value}</span>
     </div>
   );
 }
+
