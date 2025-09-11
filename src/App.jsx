@@ -1,61 +1,67 @@
-import { Toaster, toast } from 'sonner';
-import { useGameLogic } from "./hooks/useGameLogic";
+import { Toaster, toast } from "sonner";
 import { Header } from "./components/game/Header";
 import { ActionsPanel } from "./components/game/ActionsPanel";
 import { MomoCart } from "./components/game/MomoCart";
 import { CustomerQueue } from "./components/game/CustomerQueue";
 import { UpgradesPanel } from "./components/game/UpgradesPanel";
-import { GameStatusModal } from "./components/game/GameStatusModel";
+import { GameStatusModel } from "./components/game/GameStatusModel";
+import { EventBanner } from "./components/game/EventBanner";
+import { useGameLogic } from "./hooks/useGameLogic";
 
 function App() {
-  const {
-    money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
-    upgradeLevels, gameState, dailyGoal, moneyEarnedToday,
-    buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame, resetProgress,
-  } = useGameLogic({ notify: toast });
+  const game = useGameLogic({ notify: toast });
 
   return (
     <>
       <Toaster richColors position="top-right" />
-      <GameStatusModal
-        status={gameState}
-        day={day}
-        onNextDay={startNextDay}
-        onRestart={restartGame}
-      />
-      <div className="bg-background text-foreground min-h-screen">
-        <div className="container mx-auto p-4 max-w-4xl">
+      <main className="min-h-screen bg-background text-foreground font-sans antialiased p-4 md:p-8">
+        <div className="max-w-7xl mx-auto">
           <Header
-            money={money}
-            momoStock={momoStock}
-            day={day}
-            dailyGoal={dailyGoal}
-            moneyEarnedToday={moneyEarnedToday}
+            money={game.money}
+            momoStock={game.momoStock}
+            day={game.day}
+            dailyGoal={game.dailyGoal}
+            moneyEarnedToday={game.moneyEarnedToday}
+            reputation={game.reputation}
           />
-          <main className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-1 space-y-6">
+          
+          <EventBanner activeEvent={game.activeEvent} />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1 space-y-6">
               <ActionsPanel
-                flour={flour}
-                filling={filling}
-                isMakingMomo={isMakingMomo}
-                makingProgress={makingProgress}
-                onBuyIngredients={buyIngredients}
-                onMakeMomo={makeMomo}
-                onResetProgress={resetProgress}
+                flour={game.flour}
+                filling={game.filling}
+                onBuyIngredients={game.buyIngredients}
+                onMakeMomo={game.makeMomo}
+                makingProgress={game.makingProgress}
+                isMakingMomo={game.isMakingMomo}
+                onResetProgress={game.resetProgress}
               />
               <UpgradesPanel
-                upgradeLevels={upgradeLevels}
-                money={money}
-                onPurchaseUpgrade={purchaseUpgrade}
+                money={game.money}
+                upgradeLevels={game.upgradeLevels}
+                onPurchaseUpgrade={game.purchaseUpgrade}
               />
             </div>
-            <div className="md:col-span-2 space-y-6">
+
+            <div className="lg:col-span-2 space-y-6">
               <MomoCart />
-              <CustomerQueue customers={customers} onServeCustomer={serveCustomer} lastServedInfo={lastServedInfo} />
+              <CustomerQueue
+                customers={game.customers}
+                onServeCustomer={game.serveCustomer}
+                lastServedInfo={game.lastServedInfo}
+              />
             </div>
-          </main>
+          </div>
         </div>
-      </div>
+      </main>
+      <GameStatusModel
+        gameState={game.gameState}
+        onStartNextDay={game.startNextDay}
+        onRestartGame={game.restartGame}
+        day={game.day}
+      />
     </>
   );
 }

@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PartyPopper, Frown } from "lucide-react";
 
-export function GameStatusModal({ status, day, onNextDay, onRestart }) {
+export function GameStatusModel({ status, day, onNextDay, onRestart }) {
   const isOpen = status === 'day_complete' || status === 'game_over';
 
   const title = status === 'day_complete' ? `Day ${day} Complete!` : "Game Over";
