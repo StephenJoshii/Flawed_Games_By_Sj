@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { UPGRADES_CONFIG } from "@/hooks/useGameLogic";
+import { UPGRADES_CONFIG } from "@/games/momo-tycoon/components/hooks/useGameLogic";
 import { Gauge, Leaf, ShoppingCart, Info } from "lucide-react";
 
 const ICONS = {
