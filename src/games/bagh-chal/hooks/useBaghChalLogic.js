@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 
 // Defines constants for piece types and game states.
 const PIECES = { TIGER: 'TIGER', GOAT: 'GOAT', EMPTY: null };
@@ -26,16 +26,14 @@ const ADJACENCY_MAP = [
 ];
 
 
-export function useBaghChalLogic() {
+export function useBaghChalLogic({ gameMode }) {
   const [board, setBoard] = useState(getInitialBoard);
   const [turn, setTurn] = useState(TURN.GOAT);
   const [phase, setPhase] = useState(GAME_PHASES.PLACING);
   const [goatsToPlace, setGoatsToPlace] = useState(20);
   const [goatsCaptured, setGoatsCaptured] = useState(0);
-  const [selectedPiece, setSelectedPiece] = useState(null); // { r, c }
+  const [selectedPiece, setSelectedPiece] = useState(null);
   const [status, setStatus] = useState(GAME_STATUS.PLAYING);
-
-  // --- Utility Functions ---
 
   const isAdjacent = useCallback((r1, c1, r2, c2) => {
     return ADJACENCY_MAP[r1 * 5 + c1].some(([r, c]) => r === r2 && c === c2);
@@ -44,131 +42,133 @@ export function useBaghChalLogic() {
   const getTigerMoves = useCallback((r, c, currentBoard) => {
     const moves = [];
     const captures = [];
-
     ADJACENCY_MAP[r * 5 + c].forEach(([adjR, adjC]) => {
-      // Check for simple moves
       if (currentBoard[adjR][adjC] === PIECES.EMPTY) {
-        moves.push({ r: adjR, c: adjC });
-      } 
-      // Check for captures
-      else if (currentBoard[adjR][adjC] === PIECES.GOAT) {
+        moves.push({ from: { r, c }, to: { r: adjR, c: adjC } });
+      } else if (currentBoard[adjR][adjC] === PIECES.GOAT) {
         const jumpR = adjR + (adjR - r);
         const jumpC = adjC + (adjC - c);
-
         if (jumpR >= 0 && jumpR < 5 && jumpC >= 0 && jumpC < 5 && currentBoard[jumpR][jumpC] === PIECES.EMPTY) {
-          captures.push({ r: jumpR, c: jumpC, captured: { r: adjR, c: adjC } });
+          captures.push({ from: { r, c }, to: { r: jumpR, c: jumpC }, captured: { r: adjR, c: adjC } });
         }
       }
     });
     return { moves, captures };
   }, []);
 
-  // --- Game State Checks ---
-
   const checkGoatWin = useCallback((currentBoard) => {
     for (let r = 0; r < 5; r++) {
       for (let c = 0; c < 5; c++) {
         if (currentBoard[r][c] === PIECES.TIGER) {
           const { moves, captures } = getTigerMoves(r, c, currentBoard);
-          if (moves.length > 0 || captures.length > 0) {
-            return false; // Found a tiger that can move, goats have not won yet.
-          }
+          if (moves.length > 0 || captures.length > 0) return false;
         }
       }
     }
-    return true; // No tiger could move.
+    return true;
   }, [getTigerMoves]);
 
-  // --- Core Game Actions ---
+  const _performMove = useCallback((newBoard, move) => {
+      if (checkGoatWin(newBoard)) setStatus(GAME_STATUS.GOAT_WIN);
+      setBoard(newBoard);
+      setTurn(turn === TURN.TIGER ? TURN.GOAT : TURN.TIGER);
+      setSelectedPiece(null);
+  }, [turn, checkGoatWin]);
+
+  const makeAIMove = useCallback(() => {
+    let allCaptures = [];
+    let allSimpleMoves = [];
+    const newBoard = board.map(row => [...row]);
+
+    for (let r = 0; r < 5; r++) {
+      for (let c = 0; c < 5; c++) {
+        if (board[r][c] === PIECES.TIGER) {
+          const { moves, captures } = getTigerMoves(r, c, board);
+          allCaptures.push(...captures);
+          allSimpleMoves.push(...moves);
+        }
+      }
+    }
+
+    // AI strategy: 1. Prioritize captures, 2. Make a random move.
+    const move = allCaptures.length > 0
+      ? allCaptures[Math.floor(Math.random() * allCaptures.length)]
+      : allSimpleMoves[Math.floor(Math.random() * allSimpleMoves.length)];
+
+    if (move) {
+      newBoard[move.to.r][move.to.c] = PIECES.TIGER;
+      newBoard[move.from.r][move.from.c] = PIECES.EMPTY;
+      if (move.captured) {
+        newBoard[move.captured.r][move.captured.c] = PIECES.EMPTY;
+        const newGoatsCaptured = goatsCaptured + 1;
+        setGoatsCaptured(newGoatsCaptured);
+        if (newGoatsCaptured >= 5) setStatus(GAME_STATUS.TIGER_WIN);
+      }
+      _performMove(newBoard);
+    }
+  }, [board, getTigerMoves, goatsCaptured, _performMove]);
+  
+  // Effect to trigger AI move
+  useEffect(() => {
+    if (turn === TURN.TIGER && gameMode === 'AI' && status === GAME_STATUS.PLAYING) {
+      setTimeout(() => makeAIMove(), 1000); // AI "thinks" for 1 second
+    }
+  }, [turn, gameMode, status, makeAIMove]);
 
   const handleCellClick = useCallback((r, c) => {
     if (status !== GAME_STATUS.PLAYING) return;
+    if (turn === TURN.TIGER && gameMode === 'AI') return; // Player cannot control AI
 
-    // Goat Placement Phase
     if (phase === GAME_PHASES.PLACING) {
       if (turn !== TURN.GOAT || board[r][c] !== PIECES.EMPTY) return;
-      
       const newBoard = board.map(row => [...row]);
       newBoard[r][c] = PIECES.GOAT;
       setBoard(newBoard);
-      
       const newGoatsToPlace = goatsToPlace - 1;
       setGoatsToPlace(newGoatsToPlace);
-      
-      if (newGoatsToPlace === 0) {
-        setPhase(GAME_PHASES.MOVING);
-      }
+      if (newGoatsToPlace === 0) setPhase(GAME_PHASES.MOVING);
       setTurn(TURN.TIGER);
       return;
     }
 
-    // --- Movement Phase ---
     if (phase === GAME_PHASES.MOVING) {
-      // Selecting a piece to move
       if (!selectedPiece) {
-        if (board[r][c] === turn) {
-          setSelectedPiece({ r, c });
-        }
+        if (board[r][c] === turn) setSelectedPiece({ r, c });
         return;
       }
-
-      // Deselecting a piece
       if (selectedPiece.r === r && selectedPiece.c === c) {
         setSelectedPiece(null);
         return;
       }
-      
-      const pieceToMove = board[selectedPiece.r][selectedPiece.c];
-      
-      // Moving a piece
-      if (pieceToMove === turn) {
+      if (board[selectedPiece.r][selectedPiece.c] === turn) {
         const newBoard = board.map(row => [...row]);
-        let moveIsValid = false;
-
         if (turn === TURN.TIGER) {
           const { moves, captures } = getTigerMoves(selectedPiece.r, selectedPiece.c, board);
-          const captureMove = captures.find(cap => cap.r === r && cap.c === c);
-          const simpleMove = moves.find(mov => mov.r === r && mov.c === c);
-
+          const captureMove = captures.find(cap => cap.to.r === r && cap.to.c === c);
+          const simpleMove = moves.find(mov => mov.to.r === r && mov.to.c === c);
           if (captureMove) {
-            newBoard[captureMove.r][captureMove.c] = PIECES.TIGER;
+            newBoard[captureMove.to.r][captureMove.to.c] = PIECES.TIGER;
             newBoard[selectedPiece.r][selectedPiece.c] = PIECES.EMPTY;
             newBoard[captureMove.captured.r][captureMove.captured.c] = PIECES.EMPTY;
             const newGoatsCaptured = goatsCaptured + 1;
             setGoatsCaptured(newGoatsCaptured);
             if (newGoatsCaptured >= 5) setStatus(GAME_STATUS.TIGER_WIN);
-            moveIsValid = true;
+            _performMove(newBoard);
           } else if (simpleMove) {
-            newBoard[simpleMove.r][simpleMove.c] = PIECES.TIGER;
+            newBoard[simpleMove.to.r][simpleMove.to.c] = PIECES.TIGER;
             newBoard[selectedPiece.r][selectedPiece.c] = PIECES.EMPTY;
-            moveIsValid = true;
+            _performMove(newBoard);
           }
-        } 
-        
-        else if (turn === TURN.GOAT) {
+        } else if (turn === TURN.GOAT) {
           if (board[r][c] === PIECES.EMPTY && isAdjacent(selectedPiece.r, selectedPiece.c, r, c)) {
             newBoard[r][c] = PIECES.GOAT;
             newBoard[selectedPiece.r][selectedPiece.c] = PIECES.EMPTY;
-            moveIsValid = true;
-          }
-        }
-        
-        if (moveIsValid) {
-          if (checkGoatWin(newBoard)) {
-            setStatus(GAME_STATUS.GOAT_WIN);
-          }
-          setBoard(newBoard);
-          setTurn(turn === TURN.TIGER ? TURN.GOAT : TURN.TIGER);
-          setSelectedPiece(null);
-        } else {
-          // If the target is another of the player's pieces, select that one instead.
-          if (board[r][c] === turn) {
-            setSelectedPiece({ r, c });
+            _performMove(newBoard, { from: selectedPiece, to: {r,c}});
           }
         }
       }
     }
-  }, [board, turn, phase, goatsToPlace, goatsCaptured, selectedPiece, status, getTigerMoves, isAdjacent, checkGoatWin]);
+  }, [board, turn, phase, goatsToPlace, selectedPiece, status, gameMode, getTigerMoves, isAdjacent, goatsCaptured, _performMove]);
 
   const restartGame = useCallback(() => {
     setBoard(getInitialBoard());
@@ -185,7 +185,7 @@ export function useBaghChalLogic() {
     const { r, c } = selectedPiece;
     if (board[r][c] === PIECES.TIGER) {
       const { moves, captures } = getTigerMoves(r, c, board);
-      return [...moves, ...captures];
+      return [...moves.map(m=>m.to), ...captures.map(c=>c.to)];
     }
     if (board[r][c] === PIECES.GOAT) {
       return ADJACENCY_MAP[r * 5 + c]
@@ -195,8 +195,6 @@ export function useBaghChalLogic() {
     return [];
   }, [selectedPiece, board, status, getTigerMoves]);
 
-  return {
-    board, turn, phase, goatsToPlace, goatsCaptured, selectedPiece, status, possibleMoves,
-    handleCellClick, restartGame,
-  };
+  return { board, turn, phase, goatsToPlace, goatsCaptured, selectedPiece, status, possibleMoves, handleCellClick, restartGame };
 }
+

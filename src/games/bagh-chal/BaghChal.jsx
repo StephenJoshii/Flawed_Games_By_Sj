@@ -1,25 +1,48 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useBaghChalLogic } from "./hooks/useBaghChalLogic";
 import { BaghChalBoard } from "./components/BaghChalBoard";
 import { GameInfo } from "./components/GameInfo";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 // The main component for the Bagh Chal game.
 export function BaghChal() {
-  const { 
-    board, 
-    turn, 
-    phase, 
-    goatsToPlace, 
-    goatsCaptured, 
-    selectedPiece, 
-    status, 
-    possibleMoves, 
-    handleCellClick, 
-    restartGame 
-  } = useBaghChalLogic();
+  const [gameMode, setGameMode] = useState(null); // 'PVP' or 'AI'
 
+  const logic = useBaghChalLogic({ gameMode });
+
+  // Render the game mode selection screen if no mode is chosen yet.
+  if (!gameMode) {
+    return (
+      <div className="flex flex-col items-center justify-center p-4 min-h-screen bg-amber-50">
+        <div className="absolute top-4 left-4">
+          <Link to="/">
+            <Button variant="outline" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
+        <Card className="w-full max-w-sm">
+          <CardHeader>
+            <CardTitle>Bagh Chal</CardTitle>
+            <CardDescription>Select a game mode to begin.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button className="w-full" onClick={() => setGameMode('PVP')}>
+              Play vs Player
+            </Button>
+            <Button className="w-full" onClick={() => setGameMode('AI')}>
+              Play vs AI (You are Goats)
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Render the main game screen once a mode is selected.
   return (
     <div className="flex flex-col lg:flex-row items-center justify-center gap-8 p-4 min-h-screen bg-amber-50">
        <div className="absolute top-4 left-4">
@@ -31,18 +54,22 @@ export function BaghChal() {
         </div>
       
       <BaghChalBoard 
-        board={board}
-        selectedPiece={selectedPiece}
-        possibleMoves={possibleMoves}
-        onCellClick={handleCellClick}
+        board={logic.board}
+        selectedPiece={logic.selectedPiece}
+        possibleMoves={logic.possibleMoves}
+        onCellClick={logic.handleCellClick}
       />
       <GameInfo 
-        turn={turn}
-        phase={phase}
-        goatsToPlace={goatsToPlace}
-        goatsCaptured={goatsCaptured}
-        status={status}
-        onRestart={restartGame}
+        turn={logic.turn}
+        phase={logic.phase}
+        goatsToPlace={logic.goatsToPlace}
+        goatsCaptured={logic.goatsCaptured}
+        status={logic.status}
+        onRestart={() => {
+          logic.restartGame();
+          // Optional: go back to mode select on restart from game screen
+          // setGameMode(null); 
+        }}
       />
     </div>
   );
