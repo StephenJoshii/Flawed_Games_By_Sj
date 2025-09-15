@@ -11,7 +11,7 @@ export function HomePage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {/* This is where you'll add more games in the future */}
+        {/* Card for Momo Tycoon */}
         <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Kathmandu Momo Tycoon</CardTitle>
@@ -24,6 +24,7 @@ export function HomePage() {
           </CardContent>
         </Card>
 
+        {/* Card for 2048 */}
         <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>2048</CardTitle>
@@ -35,7 +36,21 @@ export function HomePage() {
             </Link>
           </CardContent>
         </Card>
+        
+        {/* ✅ NEW: Card for Bagh Chal */}
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Bagh Chal</CardTitle>
+            <CardDescription>The classic Nepali strategy game of tigers and goats. Outwit your opponent to claim victory.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/bagh-chal" className="w-full">
+              <Button className="w-full">Play Now</Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
+
