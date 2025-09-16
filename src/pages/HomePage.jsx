@@ -11,6 +11,19 @@ export function HomePage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Card for Coup */}
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Coup</CardTitle>
+            <CardDescription>A game of deception and manipulation. Bluff your way to victory in this social deduction classic.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/coup" className="w-full">
+              <Button className="w-full">Play Now</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      
         {/* Card for Momo Tycoon */}
         <Card className="flex flex-col">
           <CardHeader>
@@ -37,16 +50,14 @@ export function HomePage() {
           </CardContent>
         </Card>
         
-        {/* ✅ NEW: Card for Bagh Chal */}
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>Bagh Chal</CardTitle>
-            <CardDescription>The classic Nepali strategy game of tigers and goats. Outwit your opponent to claim victory.</CardDescription>
+        {/* Updated Card for Bagh Chal */}
+        <Card className="border-dashed">
+           <CardHeader>
+            <CardTitle className="text-muted-foreground">Bagh Chal</CardTitle>
+            <CardDescription className="text-muted-foreground">The classic Nepali strategy game. Currently undergoing maintenance.</CardDescription>
           </CardHeader>
-          <CardContent className="flex-grow flex items-end">
-            <Link to="/play/bagh-chal" className="w-full">
-              <Button className="w-full">Play Now</Button>
-            </Link>
+           <CardContent className="flex-grow flex items-end">
+            <Button disabled className="w-full">Unavailable</Button>
           </CardContent>
         </Card>
       </div>

@@ -10,8 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 // The main component for the Bagh Chal game.
 export function BaghChal() {
   const [gameMode, setGameMode] = useState(null); // 'PVP' or 'AI'
+  const [playerPiece, setPlayerPiece] = useState(null); // 'TIGER' or 'GOAT'
 
-  const logic = useBaghChalLogic({ gameMode });
+  const logic = useBaghChalLogic({ gameMode, playerPiece });
 
   // Render the game mode selection screen if no mode is chosen yet.
   if (!gameMode) {
@@ -33,8 +34,11 @@ export function BaghChal() {
             <Button className="w-full" onClick={() => setGameMode('PVP')}>
               Play vs Player
             </Button>
-            <Button className="w-full" onClick={() => setGameMode('AI')}>
-              Play vs AI (You are Goats)
+            <Button className="w-full" onClick={() => { setGameMode('AI'); setPlayerPiece('TIGER'); }}>
+              Play as Tiger (vs AI)
+            </Button>
+            <Button className="w-full" onClick={() => { setGameMode('AI'); setPlayerPiece('GOAT'); }}>
+              Play as Goat (vs AI)
             </Button>
           </CardContent>
         </Card>
@@ -67,8 +71,7 @@ export function BaghChal() {
         status={logic.status}
         onRestart={() => {
           logic.restartGame();
-          // Optional: go back to mode select on restart from game screen
-          // setGameMode(null); 
+          setGameMode(null); // Go back to the mode selection screen on restart
         }}
       />
     </div>
