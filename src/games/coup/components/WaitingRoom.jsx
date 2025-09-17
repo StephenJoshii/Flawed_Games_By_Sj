@@ -3,18 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Toaster, toast } from "sonner";
 
 // A UI component for the pre-game waiting area.
-export function WaitingRoom({ gameData, userId }) {
-
+export function WaitingRoom({ gameData, userId, onStartGame }) {
   const isHost = gameData.hostId === userId;
   
   const handleCopyGameId = () => {
     navigator.clipboard.writeText(gameData.id);
     toast.success("Game ID copied to clipboard!");
-  };
-
-  const handleStartGame = () => {
-    // This function will be implemented in the next step.
-    toast.info("Starting the game...");
   };
 
   return (
@@ -35,8 +29,9 @@ export function WaitingRoom({ gameData, userId }) {
               <h3 className="font-bold mb-2">Players ({gameData.players.length} / 6)</h3>
               <ul className="space-y-2">
                 {gameData.players.map((player) => (
-                  <li key={player.uid} className="p-2 bg-gray-50 rounded">
-                    {player.name} {player.uid === userId ? "(You)" : ""}
+                  <li key={player.uid} className="p-2 bg-gray-50 rounded flex justify-between items-center">
+                    <span>{player.name} {player.uid === userId ? "(You)" : ""}</span>
+                    {player.uid === gameData.hostId && <span className="text-xs font-bold text-primary">(Host)</span>}
                   </li>
                 ))}
               </ul>
@@ -44,7 +39,7 @@ export function WaitingRoom({ gameData, userId }) {
             {isHost && (
               <Button 
                 className="w-full"
-                onClick={handleStartGame}
+                onClick={onStartGame}
                 disabled={gameData.players.length < 2}
               >
                 Start Game ({gameData.players.length} Players)
@@ -59,3 +54,4 @@ export function WaitingRoom({ gameData, userId }) {
     </>
   );
 }
+

@@ -10,7 +10,7 @@ import { db, auth, signIn } from "../../firebase";
 import { doc, getDoc, collection, addDoc, onSnapshot } from "firebase/firestore";
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
-import { initializeNewGame, addPlayerToGame } from "./hooks/useCoupLogic";
+import { initializeNewGame, addPlayerToGame, startGame } from "./hooks/useCoupLogic";
 
 // The main lobby component for creating or joining a game.
 function CoupLobby() {
@@ -50,13 +50,12 @@ function CoupLobby() {
       const gameDoc = await getDoc(gameDocRef);
       if (gameDoc.exists()) {
         const gameData = gameDoc.data();
-        if (gameData.players.length >= 6) {
-          toast.error("This game is full.");
-        } else if (gameData.players.some(p => p.uid === user.uid)) {
-           // Player is already in the game, just navigate them
+        if (gameData.status !== 'waiting') return toast.error("This game has already started.");
+        if (gameData.players.length >= 6) return toast.error("This game is full.");
+        if (gameData.players.some(p => p.uid === user.uid)) {
            navigate(`/play/coup/${gameIdInput.trim()}`);
         } else {
-          await addPlayerToGame(gameDocRef, user);
+          await addPlayerToGame(gameDocRef, user, gameData.players.length);
           navigate(`/play/coup/${gameIdInput.trim()}`);
         }
       } else {
@@ -129,6 +128,18 @@ function GameSession() {
     return () => unsubscribe();
   }, [gameId, appId, user]);
 
+  const handleStartGame = async () => {
+    if (!gameData || gameData.hostId !== user.uid) {
+      return toast.error("Only the host can start the game.");
+    }
+    try {
+      await startGame(gameId, gameData.players, appId);
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast.error("Failed to start game.");
+    }
+  };
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-4 min-h-screen">
@@ -142,9 +153,8 @@ function GameSession() {
       return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
   }
   
-  // Render the correct component based on the game's status
   if (gameData.status === 'waiting') {
-      return <WaitingRoom gameData={gameData} userId={user?.uid} />;
+      return <WaitingRoom gameData={gameData} userId={user?.uid} onStartGame={handleStartGame} />;
   }
 
   return (
@@ -160,11 +170,9 @@ export function Coup() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check if user is already signed in.
     if(auth.currentUser) {
       setUser(auth.currentUser);
     } else {
-      // If not, sign in. This handles the initial load.
       signIn().then(() => setUser(auth.currentUser));
     }
   }, []);

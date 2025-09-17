@@ -1,4 +1,5 @@
-import { updateDoc, arrayUnion } from "firebase/firestore";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { db } from "../../../firebase";
 
 // Defines the characters and their abilities available in the game.
 export const CHARACTERS = {
@@ -29,26 +30,19 @@ const shuffleDeck = (deck) => {
 
 // Initializes the full game state for a new game.
 export const initializeNewGame = (hostUser) => {
-  const deck = shuffleDeck(createDeck());
-  
-  // Sets up the initial state for the host player.
   const hostPlayer = {
     uid: hostUser.uid,
     name: `Player 1`,
     coins: 2,
-    cards: [
-      { character: deck.pop(), isRevealed: false },
-      { character: deck.pop(), isRevealed: false },
-    ],
+    cards: [], // Cards are dealt when the game starts
     isOut: false,
   };
 
-  // Returns the complete initial game document to be saved in Firestore.
   return {
     hostId: hostUser.uid,
     players: [hostPlayer],
-    deck: deck,
-    treasury: 50 - 2, // 50 total coins minus the 2 for the first player
+    deck: createDeck(), // Deck is created but not shuffled until start
+    treasury: 50 - 2,
     currentPlayerIndex: 0,
     actionLog: [`Game created by ${hostPlayer.name}. Waiting for players...`],
     status: "waiting",
@@ -58,18 +52,40 @@ export const initializeNewGame = (hostUser) => {
 };
 
 // Adds a new player to an existing game document in Firestore.
-export const addPlayerToGame = async (gameDocRef, user) => {
+export const addPlayerToGame = async (gameDocRef, user, playerCount) => {
     const newPlayer = {
         uid: user.uid,
-        name: `Player ${new Date().getSeconds()}`, // Simple name for now
+        name: `Player ${playerCount + 1}`,
         coins: 2,
-        cards: [], // Cards will be dealt when the game starts
+        cards: [],
         isOut: false,
     };
-
-    // Atomically add the new player to the 'players' array in Firestore.
     await updateDoc(gameDocRef, {
         players: arrayUnion(newPlayer)
     });
+};
+
+// Transitions the game from "waiting" to "playing".
+export const startGame = async (gameId, currentPlayers, appId) => {
+  const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
+  const shuffledDeck = shuffleDeck(createDeck());
+
+  const updatedPlayers = currentPlayers.map(player => {
+    return {
+      ...player,
+      cards: [
+        { character: shuffledDeck.pop(), isRevealed: false },
+        { character: shuffledDeck.pop(), isRevealed: false },
+      ]
+    };
+  });
+
+  await updateDoc(gameDocRef, {
+    players: updatedPlayers,
+    deck: shuffledDeck,
+    status: "playing",
+    currentPlayerIndex: Math.floor(Math.random() * updatedPlayers.length), // Randomize who starts
+    actionLog: arrayUnion("Game started!"),
+  });
 };
 
