@@ -99,15 +99,34 @@ function CoupLobby() {
   );
 }
 
-// This component acts as a "wrapper" for an active game session.
+// A hardcoded game state for testing the UI without needing real players.
+const mockGameData = {
+  id: "mock-game-123",
+  hostId: "your-mock-id",
+  status: "playing",
+  currentPlayerIndex: 0,
+  players: [
+    { uid: "your-mock-id", name: "Player 1", coins: 4, cards: [{ character: "Duke", isRevealed: false },{ character: "Assassin", isRevealed: true }], isOut: false },
+    { uid: "player-2", name: "Player 2", coins: 2, cards: [{ character: "Captain", isRevealed: false },{ character: "Contessa", isRevealed: false }], isOut: false },
+    { uid: "player-3", name: "Player 3", coins: 7, cards: [{ character: "Ambassador", isRevealed: false },{ character: "Duke", isRevealed: false }], isOut: true },
+  ],
+  actionLog: ["Game started.", "Player 1's turn."],
+};
+
 function GameSession() {
   const { gameId } = useParams();
-  const [gameData, setGameData] = useState(null);
-  const [error, setError] = useState(null);
-  const user = auth.currentUser;
-  
+  // const [gameData, setGameData] = useState(null); // Temporarily disabled
+  // const [error, setError] = useState(null); // Temporarily disabled
+  // const user = auth.currentUser; // Temporarily disabled
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
 
+  // --- MOCK DATA FOR UI DEVELOPMENT ---
+  const [gameData, setGameData] = useState(mockGameData);
+  const user = { uid: "your-mock-id" }; // We pretend to be the host
+  const error = null;
+  // --- END MOCK DATA ---
+  
+  /* // This is the real-time listener, temporarily disabled for UI testing.
   useEffect(() => {
     if (!gameId || !user) return;
     const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
@@ -127,17 +146,10 @@ function GameSession() {
 
     return () => unsubscribe();
   }, [gameId, appId, user]);
+  */
 
   const handleStartGame = async () => {
-    if (!gameData || gameData.hostId !== user.uid) {
-      return toast.error("Only the host can start the game.");
-    }
-    try {
-      await startGame(gameId, gameData.players, appId);
-    } catch (error) {
-      console.error("Error starting game:", error);
-      toast.error("Failed to start game.");
-    }
+    toast.info("Start game is disabled in mock mode.");
   };
 
   if (error) {
@@ -177,6 +189,14 @@ export function Coup() {
     }
   }, []);
 
+  // Use a mock user for local testing to prevent sign-in delays
+  useEffect(() => {
+    if (!auth.currentUser) {
+        setUser({ uid: "your-mock-id" });
+    }
+  }, []);
+
+
   if (!user) {
     return <div className="flex items-center justify-center min-h-screen">Signing in...</div>;
   }
@@ -184,7 +204,8 @@ export function Coup() {
   return (
     <>
       <Toaster richColors position="top-right" />
-      {gameId ? <GameSession /> : <CoupLobby />}
+      {/* For testing, we always show the game session */}
+      <GameSession />
     </>
   );
 }
