@@ -15,6 +15,7 @@ function App() {
           <Route path="/play/2048" element={<Twenty48 />} />
           <Route path="/play/bagh-chal" element={<BaghChal />} />
           <Route path="/play/coup" element={<Coup />} />
+          <Route path="/play/coup/:gameId" element={<Coup />} />
         </Routes>
       </Router>
     </main>
