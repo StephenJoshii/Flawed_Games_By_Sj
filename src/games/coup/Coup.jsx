@@ -111,6 +111,7 @@ const mockGameData = {
     { uid: "player-3", name: "Player 3", coins: 3, cards: [{ character: "Ambassador", isRevealed: true },{ character: "Duke", isRevealed: false }], isOut: false },
   ],
   actionLog: ["Game started.", "Player 1's turn."],
+  pendingAction: null,
 };
 
 function GameSession() {
@@ -123,31 +124,6 @@ function GameSession() {
   const [targeting, setTargeting] = useState({ isTargeting: false, actionType: null });
   // --- END MOCK DATA ---
   
-  /* // This is the real-time listener, temporarily disabled for UI testing.
-  const [gameData, setGameData] = useState(null);
-  const [error, setError] = useState(null);
-  const user = auth.currentUser;
-  useEffect(() => {
-    if (!gameId || !user) return;
-    const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-    
-    const unsubscribe = onSnapshot(gameDocRef, (doc) => {
-      if (doc.exists()) {
-        setGameData({ id: doc.id, ...doc.data() });
-        setError(null);
-      } else {
-        setError("Game not found. It may have been deleted.");
-        setGameData(null);
-      }
-    }, (err) => {
-      console.error("Error listening to game state:", err);
-      setError("An error occurred while connecting to the game.");
-    });
-
-    return () => unsubscribe();
-  }, [gameId, appId, user]);
-  */
-
   const handleAction = useCallback(async (actionType) => {
     if (['coup', 'assassinate', 'steal'].includes(actionType)) {
       setTargeting({ isTargeting: true, actionType });
@@ -203,7 +179,7 @@ export function Coup() {
     <>
       <Toaster richColors position="top-right" />
       {/* For testing, we can force the game view by passing a mock gameId */}
-      {gameId || true ? <GameSession /> : <CoupLobby />}
+      {gameId ? <GameSession /> : <CoupLobby />}
     </>
   );
 }
