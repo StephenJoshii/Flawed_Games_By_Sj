@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster, toast } from "sonner";
 import { db, auth, signIn } from "../../firebase";
-import { doc, getDoc, collection, addDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
-import { initializeNewGame, addPlayerToGame, startGame } from "./hooks/useCoupLogic";
+import { initializeNewGame, addPlayerToGame, startGame, performAction } from "./hooks/useCoupLogic";
 
 // The main lobby component for creating or joining a game.
 function CoupLobby() {
@@ -99,34 +99,15 @@ function CoupLobby() {
   );
 }
 
-// A hardcoded game state for testing the UI without needing real players.
-const mockGameData = {
-  id: "mock-game-123",
-  hostId: "your-mock-id",
-  status: "playing",
-  currentPlayerIndex: 0,
-  players: [
-    { uid: "your-mock-id", name: "Player 1", coins: 4, cards: [{ character: "Duke", isRevealed: false },{ character: "Assassin", isRevealed: true }], isOut: false },
-    { uid: "player-2", name: "Player 2", coins: 2, cards: [{ character: "Captain", isRevealed: false },{ character: "Contessa", isRevealed: false }], isOut: false },
-    { uid: "player-3", name: "Player 3", coins: 7, cards: [{ character: "Ambassador", isRevealed: false },{ character: "Duke", isRevealed: false }], isOut: true },
-  ],
-  actionLog: ["Game started.", "Player 1's turn."],
-};
-
+// This component acts as a "wrapper" for an active game session.
 function GameSession() {
   const { gameId } = useParams();
-  // const [gameData, setGameData] = useState(null); // Temporarily disabled
-  // const [error, setError] = useState(null); // Temporarily disabled
-  // const user = auth.currentUser; // Temporarily disabled
+  const [gameData, setGameData] = useState(null);
+  const [error, setError] = useState(null);
+  const user = auth.currentUser;
+  
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
 
-  // --- MOCK DATA FOR UI DEVELOPMENT ---
-  const [gameData, setGameData] = useState(mockGameData);
-  const user = { uid: "your-mock-id" }; // We pretend to be the host
-  const error = null;
-  // --- END MOCK DATA ---
-  
-  /* // This is the real-time listener, temporarily disabled for UI testing.
   useEffect(() => {
     if (!gameId || !user) return;
     const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
@@ -146,11 +127,29 @@ function GameSession() {
 
     return () => unsubscribe();
   }, [gameId, appId, user]);
-  */
 
-  const handleStartGame = async () => {
-    toast.info("Start game is disabled in mock mode.");
-  };
+  const handleStartGame = useCallback(async () => {
+    if (!gameData || gameData.hostId !== user.uid) return toast.error("Only the host can start the game.");
+    try {
+      await startGame(gameId, gameData.players, appId);
+    } catch (error) {
+      console.error("Error starting game:", error);
+      toast.error("Failed to start game.");
+    }
+  }, [gameId, gameData, user, appId]);
+
+  // This function is the bridge between the UI and the database.
+  const handleAction = useCallback(async (actionType) => {
+    if (!gameData || !user) return;
+    try {
+      const newGameData = performAction(gameData, actionType, user.uid);
+      const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
+      await updateDoc(gameDocRef, newGameData);
+    } catch (error) {
+      console.error("Error performing action:", error);
+      toast.error(error.message);
+    }
+  }, [gameData, user, gameId, appId]);
 
   if (error) {
     return (
@@ -171,7 +170,7 @@ function GameSession() {
 
   return (
     <div className="p-4 min-h-screen bg-gray-100">
-      <GameTable gameData={gameData} userId={user?.uid} />
+      <GameTable gameData={gameData} userId={user?.uid} onAction={handleAction} />
     </div>
   );
 }
@@ -189,14 +188,6 @@ export function Coup() {
     }
   }, []);
 
-  // Use a mock user for local testing to prevent sign-in delays
-  useEffect(() => {
-    if (!auth.currentUser) {
-        setUser({ uid: "your-mock-id" });
-    }
-  }, []);
-
-
   if (!user) {
     return <div className="flex items-center justify-center min-h-screen">Signing in...</div>;
   }
@@ -204,8 +195,7 @@ export function Coup() {
   return (
     <>
       <Toaster richColors position="top-right" />
-      {/* For testing, we always show the game session */}
-      <GameSession />
+      {gameId ? <GameSession /> : <CoupLobby />}
     </>
   );
 }
