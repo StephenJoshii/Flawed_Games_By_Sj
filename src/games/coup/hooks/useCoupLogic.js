@@ -70,22 +70,53 @@ export const startGame = async (gameId, currentPlayers, appId) => {
   const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
   const shuffledDeck = shuffleDeck(createDeck());
 
-  const updatedPlayers = currentPlayers.map(player => {
-    return {
-      ...player,
-      cards: [
-        { character: shuffledDeck.pop(), isRevealed: false },
-        { character: shuffledDeck.pop(), isRevealed: false },
-      ]
-    };
-  });
+  const updatedPlayers = currentPlayers.map(player => ({
+    ...player,
+    cards: [
+      { character: shuffledDeck.pop(), isRevealed: false },
+      { character: shuffledDeck.pop(), isRevealed: false },
+    ]
+  }));
 
   await updateDoc(gameDocRef, {
     players: updatedPlayers,
     deck: shuffledDeck,
     status: "playing",
-    currentPlayerIndex: Math.floor(Math.random() * updatedPlayers.length), // Randomize who starts
+    currentPlayerIndex: Math.floor(Math.random() * updatedPlayers.length),
     actionLog: arrayUnion("Game started!"),
   });
+};
+
+// Processes a player's action and returns the new game state.
+export const performAction = (gameData, actionType, actingPlayerUid) => {
+  const newGameData = JSON.parse(JSON.stringify(gameData)); // Deep copy to prevent mutation
+  const { players, currentPlayerIndex } = newGameData;
+  const actingPlayer = players.find(p => p.uid === actingPlayerUid);
+
+  if (!actingPlayer || players[currentPlayerIndex].uid !== actingPlayerUid) {
+    throw new Error("Not your turn!");
+  }
+
+  switch (actionType) {
+    case 'income':
+      actingPlayer.coins += 1;
+      newGameData.treasury -= 1;
+      newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
+      break;
+    // We will add other actions here later.
+    default:
+      throw new Error(`Unknown action type: ${actionType}`);
+  }
+
+  // Advance to the next player
+  let nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
+  // Skip players who are out
+  while (players[nextPlayerIndex].isOut) {
+    nextPlayerIndex = (nextPlayerIndex + 1) % players.length;
+  }
+  newGameData.currentPlayerIndex = nextPlayerIndex;
+  newGameData.actionLog.push(`${players[nextPlayerIndex].name}'s turn.`);
+
+  return newGameData;
 };
 
