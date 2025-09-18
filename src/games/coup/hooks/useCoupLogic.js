@@ -41,13 +41,14 @@ export const initializeNewGame = (hostUser) => {
   return {
     hostId: hostUser.uid,
     players: [hostPlayer],
-    deck: createDeck(), // Deck is created but not shuffled until start
+    deck: createDeck(),
     treasury: 50 - 2,
     currentPlayerIndex: 0,
     actionLog: [`Game created by ${hostPlayer.name}. Waiting for players...`],
     status: "waiting",
     winner: null,
     createdAt: new Date(),
+    pendingAction: null, // Tracks multi-step actions like challenges
   };
 };
 
@@ -88,34 +89,71 @@ export const startGame = async (gameId, currentPlayers, appId) => {
 };
 
 // Processes a player's action and returns the new game state.
-export const performAction = (gameData, actionType, actingPlayerUid) => {
-  const newGameData = JSON.parse(JSON.stringify(gameData)); // Deep copy to prevent mutation
+export const performAction = (gameData, actionType, actingPlayerUid, targetPlayerUid = null) => {
+  const newGameData = JSON.parse(JSON.stringify(gameData));
   const { players, currentPlayerIndex } = newGameData;
   const actingPlayer = players.find(p => p.uid === actingPlayerUid);
+  const targetPlayer = targetPlayerUid ? players.find(p => p.uid === targetPlayerUid) : null;
 
   if (!actingPlayer || players[currentPlayerIndex].uid !== actingPlayerUid) {
-    throw new Error("Not your turn!");
+    throw new Error("It's not your turn!");
   }
+
+  const endTurn = () => {
+    let nextPlayerIndex = (newGameData.currentPlayerIndex + 1) % newGameData.players.length;
+    while (newGameData.players[nextPlayerIndex].isOut) {
+      nextPlayerIndex = (nextPlayerIndex + 1) % newGameData.players.length;
+    }
+    newGameData.currentPlayerIndex = nextPlayerIndex;
+    newGameData.actionLog.push(`${newGameData.players[nextPlayerIndex].name}'s turn.`);
+  };
 
   switch (actionType) {
     case 'income':
       actingPlayer.coins += 1;
       newGameData.treasury -= 1;
       newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
+      endTurn();
       break;
-    // We will add other actions here later.
-    default:
-      throw new Error(`Unknown action type: ${actionType}`);
-  }
+    case 'foreign_aid':
+      actingPlayer.coins += 2;
+      newGameData.treasury -= 2;
+      newGameData.actionLog.push(`${actingPlayer.name} takes Foreign Aid.`);
+      endTurn();
+      break;
+    case 'tax':
+      actingPlayer.coins += 3;
+      newGameData.treasury -= 3;
+      newGameData.actionLog.push(`${actingPlayer.name} claims Duke and takes Tax.`);
+      endTurn();
+      break;
+    case 'coup': { // ✅ DEFINITIVE FIX: Added curly braces to create a block scope.
+      if (actingPlayer.coins < 7) throw new Error("Not enough coins for a Coup!");
+      if (!targetPlayer) throw new Error("You must select a target for a Coup.");
+      if (targetPlayer.isOut) throw new Error("Target is already out of the game.");
+      
+      actingPlayer.coins -= 7;
+      
+      const cardToLose = targetPlayer.cards.find(c => !c.isRevealed);
+      if (cardToLose) {
+        cardToLose.isRevealed = true;
+        newGameData.actionLog.push(`${actingPlayer.name} launches a Coup against ${targetPlayer.name}. ${targetPlayer.name} reveals a ${cardToLose.character}.`);
+        
+        const remainingCards = targetPlayer.cards.filter(c => !c.isRevealed).length;
+        if (remainingCards === 0) {
+          targetPlayer.isOut = true;
+          newGameData.actionLog.push(`${targetPlayer.name} has been eliminated!`);
+        }
+      } else {
+         newGameData.actionLog.push(`${targetPlayer.name} had no influence to lose.`);
+      }
 
-  // Advance to the next player
-  let nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
-  // Skip players who are out
-  while (players[nextPlayerIndex].isOut) {
-    nextPlayerIndex = (nextPlayerIndex + 1) % players.length;
+      endTurn();
+      break;
+    }
+    default:
+      throw new Error(`Action type "${actionType}" is not yet implemented.`);
   }
-  newGameData.currentPlayerIndex = nextPlayerIndex;
-  newGameData.actionLog.push(`${players[nextPlayerIndex].name}'s turn.`);
 
   return newGameData;
 };
