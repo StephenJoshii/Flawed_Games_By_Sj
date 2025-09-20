@@ -10,6 +10,7 @@ import { db, auth, signIn } from "../../firebase";
 import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
+import { TargetSelectionModal } from "./components/TargetSelectionModal";
 import { initializeNewGame, addPlayerToGame, startGame, performAction } from "./hooks/useCoupLogic";
 
 // The main lobby component is unchanged...
@@ -84,56 +85,31 @@ function GameSession() {
   const [targeting, setTargeting] = useState({ isTargeting: false, actionType: null });
   
   const gameDataRef = useRef(gameData);
-  useEffect(() => {
-    gameDataRef.current = gameData;
-  }, [gameData]);
+  useEffect(() => { gameDataRef.current = gameData; }, [gameData]);
 
-  const targetingRef = useRef(targeting);
-  useEffect(() => {
-    targetingRef.current = targeting;
-    // ✅ DEBUGGING STEP: Log the targeting state on every render.
-    console.log('%c[Render] Targeting state updated:', 'color: purple;', targeting);
-  }, [targeting]);
-
-  const handleAction = useCallback((actionType) => {
-    console.group(`%c[Action Click] Action: ${actionType}`, 'color: blue;');
+  const handleAction = (actionType) => {
     if (['coup', 'assassinate', 'steal'].includes(actionType)) {
-      console.log('Setting targeting mode to TRUE.');
       setTargeting({ isTargeting: true, actionType });
-      toast.info("Select a target player.");
     } else {
       try {
         const newGameData = performAction(gameDataRef.current, actionType, user.uid);
         setGameData(newGameData);
       } catch (error) { toast.error(error.message); }
     }
-    console.groupEnd();
-  }, [user]);
+  };
 
-  const handleSelectTarget = useCallback((targetUid) => {
-    console.group(`%c[Target Click] Target UID: ${targetUid}`, 'color: green;');
-    // ✅ DEBUGGING STEP: Read the LATEST targeting state from the ref.
-    const currentTargeting = targetingRef.current;
-    console.log('Targeting state at moment of click:', currentTargeting);
-
-    if (!currentTargeting.isTargeting || !currentTargeting.actionType) {
-      console.error('Click ignored: Ref shows not in targeting mode.');
-      console.groupEnd();
-      return;
-    }
+  const handleSelectTarget = (targetUid) => {
+    if (!targeting.isTargeting || !targeting.actionType) return;
     try {
-      const newGameData = performAction(gameDataRef.current, currentTargeting.actionType, user.uid, targetUid);
+      const newGameData = performAction(gameDataRef.current, targeting.actionType, user.uid, targetUid);
       setGameData(newGameData);
-    } catch (error) { 
-      toast.error(error.message); 
-      console.error('Error during action:', error);
-    } 
-    finally { 
-      console.log('Exiting targeting mode.');
-      setTargeting({ isTargeting: false, actionType: null }); 
-      console.groupEnd();
-    }
-  }, [user]);
+    } catch (error) { toast.error(error.message); } 
+    finally { setTargeting({ isTargeting: false, actionType: null }); }
+  };
+  
+  const handleCancelTargeting = () => {
+    setTargeting({ isTargeting: false, actionType: null });
+  };
 
   if (!gameData) {
     return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
@@ -145,9 +121,16 @@ function GameSession() {
         gameData={gameData} 
         userId={user?.uid} 
         onAction={handleAction}
-        onSelectTarget={handleSelectTarget}
-        targetingState={targeting}
       />
+      {targeting.isTargeting && (
+        <TargetSelectionModal 
+            players={gameData.players}
+            currentUserUid={user.uid}
+            actionType={targeting.actionType}
+            onSelectTarget={handleSelectTarget}
+            onCancel={handleCancelTargeting}
+        />
+      )}
     </div>
   );
 }

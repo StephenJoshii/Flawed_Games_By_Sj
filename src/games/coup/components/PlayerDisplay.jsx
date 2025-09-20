@@ -1,23 +1,21 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Coins, User, Crown } from "lucide-react";
 
-// Displays a single player's game state, including their influence cards and coins.
+// Displays a single player's game state.
 export function PlayerDisplay({ player, isCurrentUser, isCurrentTurn, hostId }) {
   const isHost = player.uid === hostId;
 
   // Determines the styling for a card based on whether it is revealed.
   const getCardClasses = (card) => {
-    if (card.isRevealed) {
-      return "bg-gray-400 text-white border-gray-500 line-through";
-    }
-    if (isCurrentUser) {
-      return "bg-blue-600 text-white";
-    }
+    if (card.isRevealed) return "bg-gray-400 text-white border-gray-500 line-through";
+    if (isCurrentUser) return "bg-blue-600 text-white";
     return "bg-gray-800";
   };
 
+  const containerClasses = `p-2 rounded-lg border-2 ${isCurrentTurn ? "border-yellow-400 shadow-lg" : "border-transparent"}`;
+
   return (
-    <div className={`p-2 rounded-lg border-2 ${isCurrentTurn ? "border-yellow-400 shadow-lg" : "border-transparent"}`}>
+    <div className={containerClasses}>
       <Card className={player.isOut ? "opacity-50" : ""}>
         <CardContent className="p-4 relative">
           <div className="flex justify-between items-center mb-3">
@@ -42,7 +40,6 @@ export function PlayerDisplay({ player, isCurrentUser, isCurrentTurn, hostId }) 
                 </div>
               </div>
             ))}
-             {/* Render placeholders if player has fewer than 2 cards (due to losing influence) */}
             {Array(2 - player.cards.length).fill(0).map((_, index) => (
               <div key={`placeholder-${index}`} className="h-24 rounded-md bg-gray-200 border-2 border-dashed" />
             ))}
