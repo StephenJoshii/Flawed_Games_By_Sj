@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -12,20 +12,15 @@ import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
 import { initializeNewGame, addPlayerToGame, startGame, performAction } from "./hooks/useCoupLogic";
 
-// The main lobby component for creating or joining a game.
+// The main lobby component is unchanged...
 function CoupLobby() {
   const [user, setUser] = useState(null);
   const [gameIdInput, setGameIdInput] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const navigate = useNavigate();
-  
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
-
-  useEffect(() => {
-    signIn().then(() => setUser(auth.currentUser));
-  }, []);
-
+  useEffect(() => { signIn().then(() => setUser(auth.currentUser)); }, []);
   const handleCreateGame = async () => {
     if (!user) return toast.error("You must be signed in to create a game.");
     setIsCreating(true);
@@ -34,13 +29,9 @@ function CoupLobby() {
       const gameCollectionRef = collection(db, `artifacts/${appId}/public/data/coup-games`);
       const newGameDoc = await addDoc(gameCollectionRef, newGameData);
       navigate(`/play/coup/${newGameDoc.id}`);
-    } catch (error) {
-      console.error("Error creating game:", error);
-      toast.error("Failed to create game. Please try again.");
-    }
+    } catch (error) { console.error("Error creating game:", error); toast.error("Failed to create game."); }
     setIsCreating(false);
   };
-
   const handleJoinGame = async () => {
     if (!gameIdInput.trim()) return toast.warning("Please enter a Game ID.");
     if(!user) return toast.error("You must be signed in to join a game.");
@@ -58,41 +49,18 @@ function CoupLobby() {
           await addPlayerToGame(gameDocRef, user, gameData.players.length);
           navigate(`/play/coup/${gameIdInput.trim()}`);
         }
-      } else {
-        toast.error("Game not found. Please check the ID.");
-      }
-    } catch (error) {
-      console.error("Error joining game:", error);
-      toast.error("Failed to join game. Please try again.");
-    }
+      } else { toast.error("Game not found."); }
+    } catch (error) { console.error("Error joining game:", error); toast.error("Failed to join game."); }
     setIsJoining(false);
   };
-
   return (
     <div className="flex flex-col items-center justify-center p-4 min-h-screen bg-gray-100">
-      <div className="absolute top-4 left-4">
-        <Link to="/"><Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link>
-      </div>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Coup Lobby</CardTitle>
-          <CardDescription>Create a new game or join one with an ID.</CardDescription>
-        </CardHeader>
+      <div className="absolute top-4 left-4"><Link to="/"><Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link></div>
+      <Card className="w-full max-w-md"><CardHeader><CardTitle>Coup Lobby</CardTitle><CardDescription>Create a new game or join one with an ID.</CardDescription></CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Button className="w-full" onClick={handleCreateGame} disabled={isCreating || !user}>
-              {isCreating ? "Creating..." : "Create New Game"}
-            </Button>
-            {user && <p className="text-xs text-center text-muted-foreground">Your User ID: {user.uid}</p>}
-          </div>
+          <div className="space-y-2"><Button className="w-full" onClick={handleCreateGame} disabled={isCreating || !user}>{isCreating ? "Creating..." : "Create New Game"}</Button>{user && <p className="text-xs text-center text-muted-foreground">Your User ID: {user.uid}</p>}</div>
           <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div></div>
-          <div className="space-y-2">
-            <Label htmlFor="gameId">Join with Game ID</Label>
-            <Input id="gameId" placeholder="Enter Game ID" value={gameIdInput} onChange={(e) => setGameIdInput(e.target.value)} />
-            <Button variant="secondary" className="w-full" onClick={handleJoinGame} disabled={isJoining || !user}>
-              {isJoining ? "Joining..." : "Join Game"}
-            </Button>
-          </div>
+          <div className="space-y-2"><Label htmlFor="gameId">Join with Game ID</Label><Input id="gameId" placeholder="Enter Game ID" value={gameIdInput} onChange={(e) => setGameIdInput(e.target.value)} /><Button variant="secondary" className="w-full" onClick={handleJoinGame} disabled={isJoining || !user}>{isJoining ? "Joining..." : "Join Game"}</Button></div>
         </CardContent>
       </Card>
     </div>
@@ -101,58 +69,71 @@ function CoupLobby() {
 
 // A hardcoded game state for testing the UI without needing real players.
 const mockGameData = {
-  id: "mock-game-123",
-  hostId: "your-mock-id",
-  status: "playing",
-  currentPlayerIndex: 0,
+  id: "mock-game-123", hostId: "your-mock-id", status: "playing", currentPlayerIndex: 0,
   players: [
     { uid: "your-mock-id", name: "Player 1", coins: 8, cards: [{ character: "Duke", isRevealed: false },{ character: "Assassin", isRevealed: false }], isOut: false },
     { uid: "player-2", name: "Player 2", coins: 2, cards: [{ character: "Captain", isRevealed: false },{ character: "Contessa", isRevealed: false }], isOut: false },
-    { uid: "player-3", name: "Player 3", coins: 3, cards: [{ character: "Ambassador", isRevealed: true },{ character: "Duke", isRevealed: false }], isOut: false },
+    { uid: "player-3", name: "Player 3", coins: 3, cards: [{ character: "Ambassador", isRevealed: true },{ character: "Duke", isRevealed: false }], isOut: true },
   ],
-  actionLog: ["Game started.", "Player 1's turn."],
-  pendingAction: null,
+  actionLog: ["Game started.", "Player 1's turn."], pendingAction: null,
 };
 
 function GameSession() {
-  const { gameId } = useParams();
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
-
-  // --- MOCK DATA FOR UI DEVELOPMENT ---
   const [gameData, setGameData] = useState(mockGameData);
-  const user = { uid: "your-mock-id" }; // We pretend to be the host
+  const user = { uid: "your-mock-id" };
   const [targeting, setTargeting] = useState({ isTargeting: false, actionType: null });
-  // --- END MOCK DATA ---
   
-  const handleAction = useCallback(async (actionType) => {
+  const gameDataRef = useRef(gameData);
+  useEffect(() => {
+    gameDataRef.current = gameData;
+  }, [gameData]);
+
+  const targetingRef = useRef(targeting);
+  useEffect(() => {
+    targetingRef.current = targeting;
+    // ✅ DEBUGGING STEP: Log the targeting state on every render.
+    console.log('%c[Render] Targeting state updated:', 'color: purple;', targeting);
+  }, [targeting]);
+
+  const handleAction = useCallback((actionType) => {
+    console.group(`%c[Action Click] Action: ${actionType}`, 'color: blue;');
     if (['coup', 'assassinate', 'steal'].includes(actionType)) {
+      console.log('Setting targeting mode to TRUE.');
       setTargeting({ isTargeting: true, actionType });
       toast.info("Select a target player.");
     } else {
       try {
-        const newGameData = performAction(gameData, actionType, user.uid);
-        // In mock mode, we just update local state instead of writing to Firestore.
+        const newGameData = performAction(gameDataRef.current, actionType, user.uid);
         setGameData(newGameData);
-      } catch (error) {
-        console.error("Error performing action:", error);
-        toast.error(error.message);
-      }
+      } catch (error) { toast.error(error.message); }
     }
-  }, [gameData, user]);
+    console.groupEnd();
+  }, [user]);
 
-  const handleSelectTarget = useCallback(async (targetUid) => {
-    if (!targeting.isTargeting || !targeting.actionType) return;
-    try {
-      const newGameData = performAction(gameData, targeting.actionType, user.uid, targetUid);
-      // In mock mode, update local state.
-      setGameData(newGameData);
-    } catch (error) {
-      console.error("Error performing targeted action:", error);
-      toast.error(error.message);
-    } finally {
-      setTargeting({ isTargeting: false, actionType: null });
+  const handleSelectTarget = useCallback((targetUid) => {
+    console.group(`%c[Target Click] Target UID: ${targetUid}`, 'color: green;');
+    // ✅ DEBUGGING STEP: Read the LATEST targeting state from the ref.
+    const currentTargeting = targetingRef.current;
+    console.log('Targeting state at moment of click:', currentTargeting);
+
+    if (!currentTargeting.isTargeting || !currentTargeting.actionType) {
+      console.error('Click ignored: Ref shows not in targeting mode.');
+      console.groupEnd();
+      return;
     }
-  }, [targeting, gameData, user]);
+    try {
+      const newGameData = performAction(gameDataRef.current, currentTargeting.actionType, user.uid, targetUid);
+      setGameData(newGameData);
+    } catch (error) { 
+      toast.error(error.message); 
+      console.error('Error during action:', error);
+    } 
+    finally { 
+      console.log('Exiting targeting mode.');
+      setTargeting({ isTargeting: false, actionType: null }); 
+      console.groupEnd();
+    }
+  }, [user]);
 
   if (!gameData) {
     return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
@@ -171,15 +152,11 @@ function GameSession() {
   );
 }
 
-// The main Coup component now acts as a router to show either the Lobby or a GameSession.
 export function Coup() {
-  const { gameId } = useParams();
-  
   return (
     <>
       <Toaster richColors position="top-right" />
-      {/* For testing, we can force the game view by passing a mock gameId */}
-      {gameId ? <GameSession /> : <CoupLobby />}
+      <GameSession />
     </>
   );
 }
