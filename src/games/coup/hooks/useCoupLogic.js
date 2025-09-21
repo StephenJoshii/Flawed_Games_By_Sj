@@ -105,19 +105,17 @@ export const performAction = (gameData, actionType, actingPlayerUid, targetPlaye
     actingPlayer.coins += 1;
     newGameData.treasury -= 1;
     newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
-    // End turn logic will be handled in the resolution step.
-    // This is a simplified path for now.
-    let nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
-    while (players[nextPlayerIndex].isOut) {
-      nextPlayerIndex = (nextPlayerIndex + 1) % players.length;
+    // A real end turn function will be added in the final resolution step.
+    let nextPlayerIndex = (newGameData.currentPlayerIndex + 1) % newGameData.players.length;
+    while (newGameData.players[nextPlayerIndex].isOut) {
+      nextPlayerIndex = (nextPlayerIndex + 1) % newGameData.players.length;
     }
     newGameData.currentPlayerIndex = nextPlayerIndex;
-    newGameData.actionLog.push(`${players[nextPlayerIndex].name}'s turn.`);
     return newGameData;
   }
   
   if (actionType === 'coup') {
-      // Coup logic here...
+      // Coup logic remains the same for now as it cannot be challenged.
       return newGameData;
   }
   
@@ -126,7 +124,7 @@ export const performAction = (gameData, actionType, actingPlayerUid, targetPlaye
       actionType,
       actorUid: actingPlayerUid,
       targetUid: targetPlayerUid,
-      responses: [], // Tracks which players have responded
+      responses: {}, // Use an object to track responses by player UID
       challenger: null,
       blocker: null,
   };
@@ -137,22 +135,26 @@ export const performAction = (gameData, actionType, actingPlayerUid, targetPlaye
 
 // This new function will handle all player responses.
 export const handleResponse = (gameData, responseType, respondingPlayerUid) => {
-    // Logic for challenges, blocks, and allows will go here.
-    // This is a placeholder for the next step.
     const newGameData = JSON.parse(JSON.stringify(gameData));
-    newGameData.actionLog.push(`${respondingPlayerUid} chose to ${responseType}.`);
-    
-    // For now, we'll just resolve the action and clear it.
-    newGameData.pendingAction = null;
+    const respondingPlayer = newGameData.players.find(p => p.uid === respondingPlayerUid);
 
-    // Simplified end-turn logic for now
+    if (!newGameData.pendingAction || !respondingPlayer) {
+        throw new Error("Invalid response state.");
+    }
+
+    newGameData.actionLog.push(`${respondingPlayer.name} chose to ${responseType}.`);
+    
+    // In the next step, we will add the full logic for challenges and blocks.
+    // For now, any response will simply resolve the action.
+    newGameData.pendingAction = null;
+    
+    // Placeholder for end turn logic
     let nextPlayerIndex = (newGameData.currentPlayerIndex + 1) % newGameData.players.length;
     while (newGameData.players[nextPlayerIndex].isOut) {
-      nextPlayerIndex = (nextPlayerIndex + 1) % newGameData.players.length;
+        nextPlayerIndex = (nextPlayerIndex + 1) % newGameData.players.length;
     }
     newGameData.currentPlayerIndex = nextPlayerIndex;
-    newGameData.actionLog.push(`${newGameData.players[nextPlayerIndex].name}'s turn.`);
-    
+
     return newGameData;
 }
 
