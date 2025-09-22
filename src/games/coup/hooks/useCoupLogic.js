@@ -81,6 +81,15 @@ export const startGame = async (gameId, currentPlayers, appId) => {
 // --- Helper Functions ---
 const getPlayer = (players, uid) => players.find(p => p.uid === uid);
 const endTurn = (gameData) => {
+    // Check for a winner first
+    const activePlayers = gameData.players.filter(p => !p.isOut);
+    if (activePlayers.length === 1) {
+        gameData.status = "finished";
+        gameData.winner = activePlayers[0];
+        gameData.actionLog.push(`${activePlayers[0].name} is the winner!`);
+        return gameData;
+    }
+
     let nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
     while (gameData.players[nextPlayerIndex].isOut) {
         nextPlayerIndex = (nextPlayerIndex + 1) % gameData.players.length;
@@ -100,17 +109,18 @@ export const performAction = (gameData, actionType, actingPlayerUid, targetPlaye
   
   if (!actingPlayer || players[currentPlayerIndex].uid !== actingPlayerUid) throw new Error("It's not your turn!");
 
-  if (actionType === 'income' || actionType === 'coup') {
-    if (actionType === 'income') {
-        actingPlayer.coins++;
-        newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
-    }
-    // Simplified Coup logic for now
-    if (actionType === 'coup') {
-        if(actingPlayer.coins < 7) throw new Error("Not enough coins for Coup!");
-        actingPlayer.coins -= 7;
-        newGameData.actionLog.push(`${actingPlayer.name} launches a Coup.`);
-    }
+  if (actionType === 'income') {
+    actingPlayer.coins++;
+    newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
+    return endTurn(newGameData);
+  }
+  
+  if (actionType === 'coup') {
+    if(actingPlayer.coins < 7) throw new Error("Not enough coins for Coup!");
+    actingPlayer.coins -= 7;
+    newGameData.actionLog.push(`${actingPlayer.name} launches a Coup.`);
+    // This will later be a "lose influence" event for the target.
+    // For now, it's simplified.
     return endTurn(newGameData);
   }
   
@@ -126,7 +136,7 @@ export const performAction = (gameData, actionType, actingPlayerUid, targetPlaye
   return newGameData;
 };
 
-export const handleResponse = (gameData, responseType, respondingPlayerUid) => {
+export const handleResponse = (gameData, responseType, respondingPlayerUid, blockCharacter = null) => {
     let newGameData = JSON.parse(JSON.stringify(gameData));
     const { players, pendingAction } = newGameData;
     const respondingPlayer = getPlayer(players, respondingPlayerUid);
@@ -154,7 +164,14 @@ export const handleResponse = (gameData, responseType, respondingPlayerUid) => {
         return endTurn(newGameData);
     }
     
-    // Check if all players have allowed the action
+    if (responseType === 'block') {
+        pendingAction.blocker = { uid: respondingPlayerUid, character: blockCharacter };
+        newGameData.actionLog.push(`${respondingPlayer.name} claims to have a ${blockCharacter} to block the action.`);
+        // Reset responses so players can now challenge the block.
+        pendingAction.responses = {};
+        return newGameData;
+    }
+    
     const activePlayers = players.filter(p => !p.isOut && p.uid !== pendingAction.actorUid);
     const allAllowed = activePlayers.every(p => pendingAction.responses[p.uid] === 'allow');
 

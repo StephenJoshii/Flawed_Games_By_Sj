@@ -31,3 +31,4 @@ export function GameOver({ winner, currentUserId, onRestart }) {
     </div>
   );
 }
+

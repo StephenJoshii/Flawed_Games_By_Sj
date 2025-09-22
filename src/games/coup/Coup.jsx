@@ -12,6 +12,7 @@ import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
 import { TargetSelectionModal } from "./components/TargetSelectionModal";
 import { ResponseModal } from "./components/ResponseModal";
+import { GameOver } from "./components/GameOver";
 import { initializeNewGame, addPlayerToGame, startGame, performAction, handleResponse } from "./hooks/useCoupLogic";
 
 // The main lobby component for creating or joining a game.
@@ -115,12 +116,12 @@ function GameSession() {
 
   const handleStartGame = useCallback(async () => {
     if (!gameData || gameData.hostId !== user.uid) return toast.error("Only the host can start the game.");
-    try {
-      await startGame(gameId, gameData.players, appId);
-    } catch (error) { console.error("Error starting game:", error); toast.error("Failed to start game."); }
+    try { await startGame(gameId, gameData.players, appId); }
+    catch (error) { console.error("Error starting game:", error); toast.error("Failed to start game."); }
   }, [gameId, gameData, user, appId]);
 
   const handleAction = useCallback(async (actionType) => {
+    if (!gameData || !user) return;
     if (['coup', 'assassinate', 'steal'].includes(actionType)) {
       setTargeting({ isTargeting: true, actionType });
     } else {
@@ -133,7 +134,7 @@ function GameSession() {
   }, [gameData, user, gameId, appId]);
 
   const handleSelectTarget = useCallback(async (targetUid) => {
-    if (!targeting.isTargeting || !targeting.actionType) return;
+    if (!targeting.isTargeting || !targeting.actionType || !gameData || !user) return;
     try {
       const newGameData = performAction(gameData, targeting.actionType, user.uid, targetUid);
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
@@ -146,13 +147,24 @@ function GameSession() {
     setTargeting({ isTargeting: false, actionType: null });
   };
 
-  const handleResponseFromModal = useCallback(async (responseType) => {
+  const handleResponseFromModal = useCallback(async (responseType, blockCharacter = null) => {
     if (!gameData || !user) return;
     try {
-      const newGameData = handleResponse(gameData, responseType, user.uid);
+      const newGameData = handleResponse(gameData, responseType, user.uid, blockCharacter);
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
       await updateDoc(gameDocRef, newGameData);
     } catch (error) { console.error("Error handling response:", error); toast.error(error.message); }
+  }, [gameData, user, gameId, appId]);
+
+  const handleRestart = useCallback(() => {
+    if (!gameData || !user) return;
+    if(gameData.hostId === user.uid) {
+        const newGameData = initializeNewGame({ uid: gameData.hostId, name: 'Player 1' });
+        const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
+        updateDoc(gameDocRef, newGameData);
+    } else {
+        toast.error("Only the host can restart the game.");
+    }
   }, [gameData, user, gameId, appId]);
 
   if (error) {
@@ -168,8 +180,15 @@ function GameSession() {
       return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
   }
   
-  const currentPlayer = gameData.players[gameData.currentPlayerIndex];
-  const shouldShowResponseModal = gameData.pendingAction && gameData.pendingAction.actorUid !== user.uid;
+  const getPlayer = (uid) => gameData.players.find(p => p.uid === uid);
+  
+  const shouldShowResponseModal = gameData.pendingAction && 
+                                gameData.pendingAction.actorUid !== user.uid && 
+                                !gameData.pendingAction.responses[user.uid];
+
+  if (gameData.status === 'finished') {
+    return <GameOver winner={gameData.winner} currentUserId={user.uid} onRestart={handleRestart} />;
+  }
 
   return (
     <div className="p-4 min-h-screen bg-gray-100">
@@ -194,11 +213,12 @@ function GameSession() {
         <ResponseModal 
             pendingAction={{
                 ...gameData.pendingAction,
-                actorName: gameData.players.find(p => p.uid === gameData.pendingAction.actorUid)?.name || 'A player',
-                targetName: gameData.pendingAction.targetUid ? gameData.players.find(p => p.uid === gameData.pendingAction.targetUid)?.name : null,
-                blockerName: gameData.pendingAction.blocker ? gameData.players.find(p => p.uid === gameData.pendingAction.blocker.uid)?.name : null,
+                actorName: getPlayer(gameData.pendingAction.actorUid)?.name,
+                targetName: gameData.pendingAction.targetUid ? getPlayer(gameData.pendingAction.targetUid)?.name : null,
+                blockerName: gameData.pendingAction.blocker ? getPlayer(gameData.pendingAction.blocker.uid)?.name : null,
             }}
             onRespond={handleResponseFromModal}
+            currentUser={getPlayer(user.uid)}
         />
       }
     </div>
@@ -208,18 +228,8 @@ function GameSession() {
 export function Coup() {
   const { gameId } = useParams();
   const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    if(auth.currentUser) {
-      setUser(auth.currentUser);
-    } else {
-      signIn().then(() => setUser(auth.currentUser));
-    }
-  }, []);
-
-  if (!user) {
-    return <div className="flex items-center justify-center min-h-screen">Signing in...</div>;
-  }
+  useEffect(() => { if(auth.currentUser) setUser(auth.currentUser); else signIn().then(() => setUser(auth.currentUser)); }, []);
+  if (!user) { return <div className="flex items-center justify-center min-h-screen">Signing in...</div>; }
   
   return (
     <>
