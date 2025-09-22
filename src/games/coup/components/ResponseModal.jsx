@@ -9,23 +9,30 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-// A modal that allows players to respond to a pending action (Challenge, Block, Allow).
-export function ResponseModal({ pendingAction, currentPlayer, onRespond }) {
+// A modal that allows players to respond to a pending action.
+export function ResponseModal({ pendingAction, onRespond }) {
   if (!pendingAction) return null;
 
-  const { actorName, actionType, targetName } = pendingAction;
+  const { actorName, actionType, targetName, blockerName } = pendingAction;
   
-  // In a real game, you would add logic here to determine which blocks are possible.
-  const canBlock = ['foreign_aid'].includes(actionType);
+  // Determine if the current pending action is a block that can be challenged.
+  const isRespondingToBlock = !!blockerName;
+
+  // Determine which blocks are possible against the initial action.
+  const canBlock = !isRespondingToBlock && ['foreign_aid', 'assassinate', 'steal'].includes(actionType);
 
   return (
     <AlertDialog open={true}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Action Declared!</AlertDialogTitle>
+          <AlertDialogTitle>Action in Progress!</AlertDialogTitle>
           <AlertDialogDescription>
-            {actorName} is attempting to use the action: <span className="font-bold">{actionType.replace('_', ' ')}</span>
-            {targetName && ` on ${targetName}`}. How do you respond?
+            {isRespondingToBlock 
+              ? <><strong>{blockerName}</strong> is attempting to block <strong>{actorName}</strong>'s action of <strong>{actionType}</strong>.</>
+              : <><strong>{actorName}</strong> is attempting to use the action: <span className="font-bold">{actionType.replace('_', ' ')}</span>{targetName && ` on ${targetName}`}.</>
+            }
+            <br />
+            How do you respond?
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -39,3 +46,4 @@ export function ResponseModal({ pendingAction, currentPlayer, onRespond }) {
     </AlertDialog>
   );
 }
+
