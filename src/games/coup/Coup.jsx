@@ -11,9 +11,10 @@ import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc } from "firebase
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
 import { TargetSelectionModal } from "./components/TargetSelectionModal";
-import { initializeNewGame, addPlayerToGame, startGame, performAction } from "./hooks/useCoupLogic";
+import { ResponseModal } from "./components/ResponseModal";
+import { initializeNewGame, addPlayerToGame, startGame, performAction, handleResponse } from "./hooks/useCoupLogic";
 
-// The main lobby component is unchanged...
+// The main lobby component for creating or joining a game.
 function CoupLobby() {
   const [user, setUser] = useState(null);
   const [gameIdInput, setGameIdInput] = useState("");
@@ -68,15 +69,14 @@ function CoupLobby() {
   );
 }
 
-// A hardcoded game state for testing the UI without needing real players.
 const mockGameData = {
-  id: "mock-game-123", hostId: "your-mock-id", status: "playing", currentPlayerIndex: 0,
-  players: [
-    { uid: "your-mock-id", name: "Player 1", coins: 8, cards: [{ character: "Duke", isRevealed: false },{ character: "Assassin", isRevealed: false }], isOut: false },
-    { uid: "player-2", name: "Player 2", coins: 2, cards: [{ character: "Captain", isRevealed: false },{ character: "Contessa", isRevealed: false }], isOut: false },
-    { uid: "player-3", name: "Player 3", coins: 3, cards: [{ character: "Ambassador", isRevealed: true },{ character: "Duke", isRevealed: false }], isOut: true },
-  ],
-  actionLog: ["Game started.", "Player 1's turn."], pendingAction: null,
+    id: "mock-game-123", hostId: "your-mock-id", status: "playing", currentPlayerIndex: 0,
+    players: [
+      { uid: "your-mock-id", name: "Player 1 (You)", coins: 2, cards: [{ character: "Duke", isRevealed: false },{ character: "Assassin", isRevealed: false }], isOut: false },
+      { uid: "player-2", name: "Player 2", coins: 2, cards: [{ character: "Captain", isRevealed: false },{ character: "Contessa", isRevealed: false }], isOut: false },
+    ],
+    actionLog: ["Game started.", "Player 1's turn."], 
+    pendingAction: null,
 };
 
 function GameSession() {
@@ -111,10 +111,22 @@ function GameSession() {
     setTargeting({ isTargeting: false, actionType: null });
   };
 
+  const handleResponseFromModal = (responseType) => {
+      try {
+        const newGameData = handleResponse(gameDataRef.current, responseType, user.uid);
+        setGameData(newGameData);
+      } catch (error) {
+        toast.error(error.message);
+      }
+  };
+
   if (!gameData) {
-    return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
   }
   
+  const currentPlayer = gameData.players[gameData.currentPlayerIndex];
+  const shouldShowResponseModal = gameData.pendingAction && gameData.pendingAction.actorUid !== user.uid;
+
   return (
     <div className="p-4 min-h-screen bg-gray-100">
       <GameTable 
@@ -131,15 +143,41 @@ function GameSession() {
             onCancel={handleCancelTargeting}
         />
       )}
+      {shouldShowResponseModal && 
+        <ResponseModal 
+            pendingAction={{
+                ...gameData.pendingAction,
+                actorName: gameData.players.find(p => p.uid === gameData.pendingAction.actorUid)?.name || 'A player',
+                targetName: gameData.pendingAction.targetUid ? gameData.players.find(p => p.uid === gameData.pendingAction.targetUid)?.name : null,
+                blockerName: gameData.pendingAction.blocker ? gameData.players.find(p => p.uid === gameData.pendingAction.blocker.uid)?.name : null,
+            }}
+            onRespond={handleResponseFromModal}
+        />
+      }
     </div>
   );
 }
 
 export function Coup() {
+  const { gameId } = useParams();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    if(auth.currentUser) {
+      setUser(auth.currentUser);
+    } else {
+      signIn().then(() => setUser(auth.currentUser));
+    }
+  }, []);
+
+  if (!user) {
+    return <div className="flex items-center justify-center min-h-screen">Signing in...</div>;
+  }
+  
   return (
     <>
       <Toaster richColors position="top-right" />
-      <GameSession />
+      {gameId ? <GameSession /> : <CoupLobby />}
     </>
   );
 }
