@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster, toast } from "sonner";
 import { db, auth, signIn } from "../../firebase";
-import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
 import { TargetSelectionModal } from "./components/TargetSelectionModal";
 import { ResponseModal } from "./components/ResponseModal";
 import { GameOver } from "./components/GameOver";
-import { initializeNewGame, addPlayerToGame, startGame, performAction, handleResponse } from "./hooks/useCoupLogic";
+import { useCoupLogic } from "./hooks/useCoupLogic";
+import { addPlayerToGame, startGame } from "./logic/multiplayer"; // We will create this file next
 
 // The main lobby component for creating or joining a game.
 function CoupLobby() {
@@ -23,62 +24,57 @@ function CoupLobby() {
   const [isJoining, setIsJoining] = useState(false);
   const navigate = useNavigate();
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
+  
+  const coupLogic = useCoupLogic();
 
   useEffect(() => {
     signIn().then(() => setUser(auth.currentUser));
   }, []);
 
   const handleCreateGame = async () => {
-    if (!user) return toast.error("You must be signed in to create a game.");
+    if (!user) return toast.error("You must be signed in.");
     setIsCreating(true);
     try {
-      const newGameData = initializeNewGame(user); 
+      const newGameData = coupLogic.createNewGame(user);
       const gameCollectionRef = collection(db, `artifacts/${appId}/public/data/coup-games`);
-      const newGameDoc = await addDoc(gameCollectionRef, newGameData);
+      const newGameDoc = doc(gameCollectionRef); // Create a doc reference with a new ID
+      await setDoc(newGameDoc, newGameData); // Use setDoc to save the initial state
       navigate(`/play/coup/${newGameDoc.id}`);
     } catch (error) { 
-      console.error("Error creating game:", error); 
-      toast.error("Failed to create game. Please check Firestore rules."); 
+      console.error("Error:", error); 
+      toast.error("Failed to create game."); 
     }
     setIsCreating(false);
   };
 
   const handleJoinGame = async () => {
     if (!gameIdInput.trim()) return toast.warning("Please enter a Game ID.");
-    if(!user) return toast.error("You must be signed in to join a game.");
+    if(!user) return toast.error("You must be signed in.");
     setIsJoining(true);
     try {
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameIdInput.trim());
       const gameDoc = await getDoc(gameDocRef);
       if (gameDoc.exists()) {
-        const gameData = gameDoc.data();
-        if (gameData.status !== 'waiting') return toast.error("This game has already started.");
-        if (gameData.players.length >= 6) return toast.error("This game is full.");
-        if (gameData.players.some(p => p.uid === user.uid)) {
-           navigate(`/play/coup/${gameIdInput.trim()}`);
-        } else {
-          await addPlayerToGame(gameDocRef, user, gameData.players.length);
-          navigate(`/play/coup/${gameIdInput.trim()}`);
+        const d = gameDoc.data();
+        if (d.status !== 'waiting') return toast.error("Game already started.");
+        if (d.players.length >= 6) return toast.error("Game is full.");
+        if (!d.players.some(p => p.uid === user.uid)) {
+          await addPlayerToGame(gameDocRef, user, d.players.length);
         }
-      } else { 
-        toast.error("Game not found. Please check the ID."); 
-      }
-    } catch (error) { 
-      console.error("Error joining game:", error); 
-      toast.error("Failed to join game. Please try again."); 
-    }
+        navigate(`/play/coup/${gameIdInput.trim()}`);
+      } else { toast.error("Game not found."); }
+    } catch (error) { console.error("Error:", error); toast.error("Failed to join game."); }
     setIsJoining(false);
   };
 
   return (
     <div className="flex flex-col items-center justify-center p-4 min-h-screen bg-gray-100">
       <div className="absolute top-4 left-4"><Link to="/"><Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button></Link></div>
-      <Card className="w-full max-w-md">
-        <CardHeader><CardTitle>Coup Lobby</CardTitle><CardDescription>Create a new game or join one with an ID.</CardDescription></CardHeader>
+      <Card className="w-full max-w-md"><CardHeader><CardTitle>Coup Lobby</CardTitle><CardDescription>Create a new game or join with an ID.</CardDescription></CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-2"><Button className="w-full" onClick={handleCreateGame} disabled={isCreating || !user}>{isCreating ? "Creating..." : "Create New Game"}</Button>{user && <p className="text-xs text-center text-muted-foreground">Your User ID: {user.uid}</p>}</div>
+          <div className="space-y-2"><Button className="w-full" onClick={handleCreateGame} disabled={isCreating || !user}>{isCreating ? "Creating..." : "Create"}</Button>{user && <p className="text-xs text-center text-muted-foreground">ID: {user.uid}</p>}</div>
           <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">Or</span></div></div>
-          <div className="space-y-2"><Label htmlFor="gameId">Join with Game ID</Label><Input id="gameId" placeholder="Enter Game ID" value={gameIdInput} onChange={(e) => setGameIdInput(e.target.value)} /><Button variant="secondary" className="w-full" onClick={handleJoinGame} disabled={isJoining || !user}>{isJoining ? "Joining..." : "Join Game"}</Button></div>
+          <div className="space-y-2"><Label htmlFor="gameId">Join with Game ID</Label><Input id="gameId" placeholder="Enter Game ID" value={gameIdInput} onChange={(e) => setGameIdInput(e.target.value)} /><Button variant="secondary" className="w-full" onClick={handleJoinGame} disabled={isJoining || !user}>{isJoining ? "Joining..." : "Join"}</Button></div>
         </CardContent>
       </Card>
     </div>
@@ -88,103 +84,82 @@ function CoupLobby() {
 // This component acts as a "wrapper" for an active game session.
 function GameSession() {
   const { gameId } = useParams();
-  const [gameData, setGameData] = useState(null);
-  const [error, setError] = useState(null);
   const user = auth.currentUser;
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
+  
+  const { gameData, setGameData, takeAction, respondToAction } = useCoupLogic();
+  
+  const [error, setError] = useState(null);
   const [targeting, setTargeting] = useState({ isTargeting: false, actionType: null });
 
   useEffect(() => {
     if (!gameId || !user) return;
     const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-    
-    const unsubscribe = onSnapshot(gameDocRef, (doc) => {
-      if (doc.exists()) {
-        setGameData({ id: doc.id, ...doc.data() });
-        setError(null);
-      } else {
-        setError("Game not found. It may have been deleted.");
-        setGameData(null);
-      }
-    }, (err) => {
-      console.error("Error listening to game state:", err);
-      setError("An error occurred while connecting to the game.");
-    });
-
+    const unsubscribe = onSnapshot(gameDocRef, (d) => {
+      if (d.exists()) { 
+        setGameData(d.data()); // Update local state with live data from Firestore
+        setError(null); 
+      } 
+      else { setError("Game not found."); setGameData(null); }
+    }, (err) => { console.error("Error:", err); setError("Connection error."); });
     return () => unsubscribe();
-  }, [gameId, appId, user]);
+  }, [gameId, appId, user, setGameData]);
 
-  const handleStartGame = useCallback(async () => {
-    if (!gameData || gameData.hostId !== user.uid) return toast.error("Only the host can start the game.");
+  const updateFirestore = async (newGameState) => {
+    if (!newGameState) return;
+    const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
+    await updateDoc(gameDocRef, newGameState);
+  };
+
+  const handleStartGame = async () => {
+    if (!gameData || gameData.hostId !== user.uid) return toast.error("Only host can start.");
     try { await startGame(gameId, gameData.players, appId); }
-    catch (error) { console.error("Error starting game:", error); toast.error("Failed to start game."); }
-  }, [gameId, gameData, user, appId]);
+    catch (error) { console.error("Error:", error); toast.error("Failed to start game."); }
+  };
 
-  const handleAction = useCallback(async (actionType) => {
+  const handleAction = (actionType) => {
     if (!gameData || !user) return;
     if (['coup', 'assassinate', 'steal'].includes(actionType)) {
       setTargeting({ isTargeting: true, actionType });
     } else {
-      try {
-        const newGameData = performAction(gameData, actionType, user.uid);
-        const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-        await updateDoc(gameDocRef, newGameData);
-      } catch (error) { console.error("Error performing action:", error); toast.error(error.message); }
+      const newGameState = takeAction(actionType);
+      updateFirestore(newGameState);
     }
-  }, [gameData, user, gameId, appId]);
-
-  const handleSelectTarget = useCallback(async (targetUid) => {
-    if (!targeting.isTargeting || !targeting.actionType || !gameData || !user) return;
-    try {
-      const newGameData = performAction(gameData, targeting.actionType, user.uid, targetUid);
-      const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-      await updateDoc(gameDocRef, newGameData);
-    } catch (error) { console.error("Error performing targeted action:", error); toast.error(error.message); } 
-    finally { setTargeting({ isTargeting: false, actionType: null }); }
-  }, [targeting, gameData, user, gameId, appId]);
-  
-  const handleCancelTargeting = () => {
-    setTargeting({ isTargeting: false, actionType: null });
   };
 
-  const handleResponseFromModal = useCallback(async (responseType, blockCharacter = null) => {
-    if (!gameData || !user) return;
-    try {
-      const newGameData = handleResponse(gameData, responseType, user.uid, blockCharacter);
-      const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-      await updateDoc(gameDocRef, newGameData);
-    } catch (error) { console.error("Error handling response:", error); toast.error(error.message); }
-  }, [gameData, user, gameId, appId]);
-
-  const handleRestart = useCallback(() => {
-    if (!gameData || !user) return;
-    if(gameData.hostId === user.uid) {
-        const newGameData = initializeNewGame({ uid: gameData.hostId, name: 'Player 1' });
-        const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-        updateDoc(gameDocRef, newGameData);
-    } else {
-        toast.error("Only the host can restart the game.");
-    }
-  }, [gameData, user, gameId, appId]);
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-4 min-h-screen">
-        <h1 className="text-2xl font-bold text-destructive">{error}</h1>
-        <Link to="/play/coup"><Button className="mt-4">Back to Lobby</Button></Link>
-      </div>
-    );
-  }
+  const handleSelectTarget = (targetUid) => {
+    if (!targeting.isTargeting || !targeting.actionType || !gameData || !user) return;
+    const newGameState = takeAction(targeting.actionType, targetUid);
+    updateFirestore(newGameState);
+    setTargeting({ isTargeting: false, actionType: null });
+  };
   
-  if (!gameData) {
-      return <div className="flex items-center justify-center min-h-screen">Loading game session...</div>
-  }
+  const handleCancelTargeting = () => setTargeting({ isTargeting: false, actionType: null });
+
+  const handleResponseFromModal = (responseType, blockCharacter = null) => {
+    if (!gameData || !user) return;
+    const newGameState = respondToAction(responseType, blockCharacter);
+    updateFirestore(newGameState);
+  };
+  
+  const handleRestart = () => {
+    // This logic will need to be adapted for Firestore
+  };
+
+  if (error) { return <div className="flex flex-col items-center justify-center p-4 min-h-screen"><h1 className="text-2xl text-destructive">{error}</h1><Link to="/play/coup"><Button className="mt-4">Back to Lobby</Button></Link></div>; }
+  if (!gameData) { return <div className="flex items-center justify-center min-h-screen">Loading...</div> }
   
   const getPlayer = (uid) => gameData.players.find(p => p.uid === uid);
+  const me = getPlayer(user.uid);
   
-  const shouldShowResponseModal = gameData.pendingAction && 
-                                gameData.pendingAction.actorUid !== user.uid && 
-                                !gameData.pendingAction.responses[user.uid];
+  let shouldShowResponseModal = false;
+  if (gameData.pendingAction && me && !me.isOut) {
+    const { actorUid, blocker, responses } = gameData.pendingAction;
+    if (!responses[user.uid]) {
+      if (blocker && actorUid === user.uid) shouldShowResponseModal = true;
+      if (!blocker && actorUid !== user.uid) shouldShowResponseModal = true;
+    }
+  }
 
   if (gameData.status === 'finished') {
     return <GameOver winner={gameData.winner} currentUserId={user.uid} onRestart={handleRestart} />;
@@ -218,7 +193,7 @@ function GameSession() {
                 blockerName: gameData.pendingAction.blocker ? getPlayer(gameData.pendingAction.blocker.uid)?.name : null,
             }}
             onRespond={handleResponseFromModal}
-            currentUser={getPlayer(user.uid)}
+            currentUser={me}
         />
       }
     </div>
