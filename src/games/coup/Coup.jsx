@@ -7,16 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster, toast } from "sonner";
 import { db, auth, signIn } from "../../firebase";
-import { doc, getDoc, collection, addDoc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, collection, setDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import { GameTable } from "./components/GameTable";
 import { WaitingRoom } from "./components/WaitingRoom";
 import { TargetSelectionModal } from "./components/TargetSelectionModal";
 import { ResponseModal } from "./components/ResponseModal";
 import { GameOver } from "./components/GameOver";
-import { useCoupLogic } from "./hooks/useCoupLogic";
-import { addPlayerToGame, startGame } from "./logic/multiplayer"; // We will create this file next
+import { useCoupLogic } from "./hooks/useCoupLogic.js";
+import { addPlayerToGame, startGame } from "./logic/multiplayer.js";
 
-// The main lobby component for creating or joining a game.
 function CoupLobby() {
   const [user, setUser] = useState(null);
   const [gameIdInput, setGameIdInput] = useState("");
@@ -25,7 +24,7 @@ function CoupLobby() {
   const navigate = useNavigate();
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'coup-dev';
   
-  const coupLogic = useCoupLogic();
+  const { createNewGame } = useCoupLogic();
 
   useEffect(() => {
     signIn().then(() => setUser(auth.currentUser));
@@ -35,21 +34,21 @@ function CoupLobby() {
     if (!user) return toast.error("You must be signed in.");
     setIsCreating(true);
     try {
-      const newGameData = coupLogic.createNewGame(user);
+      const newGameData = createNewGame(user);
       const gameCollectionRef = collection(db, `artifacts/${appId}/public/data/coup-games`);
-      const newGameDoc = doc(gameCollectionRef); // Create a doc reference with a new ID
-      await setDoc(newGameDoc, newGameData); // Use setDoc to save the initial state
-      navigate(`/play/coup/${newGameDoc.id}`);
-    } catch (error) { 
-      console.error("Error:", error); 
-      toast.error("Failed to create game."); 
+      const newGameDocRef = doc(gameCollectionRef);
+      await setDoc(newGameDocRef, newGameData);
+      navigate(`/play/coup/${newGameDocRef.id}`);
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Failed to create game. Please check Firestore rules.");
     }
     setIsCreating(false);
   };
 
   const handleJoinGame = async () => {
     if (!gameIdInput.trim()) return toast.warning("Please enter a Game ID.");
-    if(!user) return toast.error("You must be signed in.");
+    if (!user) return toast.error("You must be signed in.");
     setIsJoining(true);
     try {
       const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameIdInput.trim());
@@ -62,8 +61,13 @@ function CoupLobby() {
           await addPlayerToGame(gameDocRef, user, d.players.length);
         }
         navigate(`/play/coup/${gameIdInput.trim()}`);
-      } else { toast.error("Game not found."); }
-    } catch (error) { console.error("Error:", error); toast.error("Failed to join game."); }
+      } else {
+        toast.error("Game not found.");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Failed to join game.");
+    }
     setIsJoining(false);
   };
 
@@ -81,7 +85,6 @@ function CoupLobby() {
   );
 }
 
-// This component acts as a "wrapper" for an active game session.
 function GameSession() {
   const { gameId } = useParams();
   const user = auth.currentUser;
@@ -97,7 +100,7 @@ function GameSession() {
     const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
     const unsubscribe = onSnapshot(gameDocRef, (d) => {
       if (d.exists()) { 
-        setGameData(d.data()); // Update local state with live data from Firestore
+        setGameData({ id: d.id, ...d.data() });
         setError(null); 
       } 
       else { setError("Game not found."); setGameData(null); }
@@ -108,13 +111,19 @@ function GameSession() {
   const updateFirestore = async (newGameState) => {
     if (!newGameState) return;
     const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
-    await updateDoc(gameDocRef, newGameState);
+    // Destructure to only send fields that logic can change, protecting others.
+    const { players, deck, treasury, currentPlayerIndex, actionLog, status, winner, pendingAction } = newGameState;
+    await updateDoc(gameDocRef, { players, deck, treasury, currentPlayerIndex, actionLog, status, winner, pendingAction });
   };
 
   const handleStartGame = async () => {
     if (!gameData || gameData.hostId !== user.uid) return toast.error("Only host can start.");
-    try { await startGame(gameId, gameData.players, appId); }
-    catch (error) { console.error("Error:", error); toast.error("Failed to start game."); }
+    try {
+      await startGame(gameId, gameData.players, appId);
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error("Failed to start game.");
+    }
   };
 
   const handleAction = (actionType) => {
@@ -138,12 +147,14 @@ function GameSession() {
 
   const handleResponseFromModal = (responseType, blockCharacter = null) => {
     if (!gameData || !user) return;
-    const newGameState = respondToAction(responseType, blockCharacter);
+    const newGameState = respondToAction(responseType, user.uid, blockCharacter);
     updateFirestore(newGameState);
   };
   
   const handleRestart = () => {
-    // This logic will need to be adapted for Firestore
+    if (!gameData || !user || gameData.hostId !== user.uid) return toast.error("Only host can restart.");
+    const newGameData = initializeNewGame({ uid: gameData.hostId, name: 'Player 1' });
+    setDoc(doc(db, `artifacts/${appId}/public/data/coup-games`, gameId), newGameData);
   };
 
   if (error) { return <div className="flex flex-col items-center justify-center p-4 min-h-screen"><h1 className="text-2xl text-destructive">{error}</h1><Link to="/play/coup"><Button className="mt-4">Back to Lobby</Button></Link></div>; }

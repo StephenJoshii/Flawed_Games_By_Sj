@@ -8,7 +8,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CHARACTERS } from "../hooks/useCoupLogic";
+// ✅ DEFINITIVE FIX: Import CHARACTERS from the new, correct location.
+import { CHARACTERS } from "../logic/state.js";
 
 // A modal that allows players to respond to a pending action.
 export function ResponseModal({ pendingAction, onRespond, currentUser }) {
@@ -16,10 +17,8 @@ export function ResponseModal({ pendingAction, onRespond, currentUser }) {
 
   const { actorName, actionType, targetName, blocker } = pendingAction;
   
-  // Determine if the current pending action is a block that can be challenged.
   const isRespondingToBlock = !!blocker;
   
-  // Determine which blocks are possible against the initial action.
   const possibleBlocks = Object.values(CHARACTERS)
     .filter(c => c.blocks === actionType)
     .map(c => c.name);
@@ -33,7 +32,7 @@ export function ResponseModal({ pendingAction, onRespond, currentUser }) {
           <AlertDialogTitle>Action in Progress!</AlertDialogTitle>
           <AlertDialogDescription>
             {isRespondingToBlock 
-              ? <><strong>{blocker.blockerName}</strong> claims to have a <strong>{blocker.character}</strong> to block <strong>{actorName}</strong>'s action of <strong>{actionType}</strong>.</>
+              ? <><strong>{blocker.blockerName}</strong> claims to have a <strong>{CHARACTERS[blocker.character]?.name}</strong> to block <strong>{actorName}</strong>'s action of <strong>{actionType}</strong>.</>
               : <><strong>{actorName}</strong> is attempting to use the action: <span className="font-bold">{actionType.replace('_', ' ')}</span>{targetName && ` on ${targetName}`}.</>
             }
             <br />
