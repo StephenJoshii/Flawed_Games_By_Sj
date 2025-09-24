@@ -1,7 +1,7 @@
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { db } from "../../../firebase";
 
-// Defines the characters, their abilities, and the actions/blocks they are associated with.
+// --- Game Constants and Definitions ---
 export const CHARACTERS = {
   DUKE: { name: "Duke", ability: "Take 3 coins (Tax). Blocks Foreign Aid.", action: 'tax', blocks: 'foreign_aid' },
   ASSASSIN: { name: "Assassin", ability: "Pay 3 coins to assassinate another player.", action: 'assassinate', blocks: null },
@@ -11,11 +11,11 @@ export const CHARACTERS = {
 };
 
 const ACTION_CHARACTER_MAP = { tax: 'Duke', assassinate: 'Assassin', steal: 'Captain', exchange: 'Ambassador' };
-const BLOCK_CHARACTER_MAP = { foreign_aid: ['Duke'], steal: ['Captain', 'Ambassador'], assassinate: ['Contessa'] };
 
+// --- Deck and Player Initialization ---
 const createDeck = () => {
   const deck = [];
-  for (const char in CHARACTERS) deck.push(char, char, char);
+  for (const charKey in CHARACTERS) deck.push(charKey, charKey, charKey);
   return deck;
 };
 
@@ -34,10 +34,21 @@ export const initializeNewGame = (hostUser) => ({
   status: "waiting", winner: null, createdAt: new Date(), pendingAction: null,
 });
 
+// ✅ This function is now fully implemented.
 export const addPlayerToGame = async (gameDocRef, user, playerCount) => {
-    await updateDoc(gameDocRef, { players: arrayUnion({ uid: user.uid, name: `Player ${playerCount + 1}`, coins: 2, cards: [], isOut: false }) });
+    const newPlayer = { 
+      uid: user.uid, 
+      name: `Player ${playerCount + 1}`, 
+      coins: 2, 
+      cards: [], 
+      isOut: false 
+    };
+    await updateDoc(gameDocRef, { 
+      players: arrayUnion(newPlayer) 
+    });
 };
 
+// ✅ This function is now fully implemented.
 export const startGame = async (gameId, currentPlayers, appId) => {
   const gameDocRef = doc(db, `artifacts/${appId}/public/data/coup-games`, gameId);
   const shuffledDeck = shuffleDeck(createDeck());
@@ -51,139 +62,134 @@ export const startGame = async (gameId, currentPlayers, appId) => {
   });
 };
 
-// --- Helper Functions ---
-const getPlayer = (players, uid) => players.find(p => p.uid === uid);
-const loseInfluence = (player) => {
+// --- Core Game State Machine ---
+const processGameEvent = (gameData, event) => {
+  const { type, payload } = event;
+
+  function getPlayer(players, uid) { return players.find(p => p.uid === uid); }
+  
+  function loseInfluence(player) {
     const cardToLose = player.cards.find(c => !c.isRevealed);
-    if (cardToLose) cardToLose.isRevealed = true;
-    if (player.cards.filter(c => !c.isRevealed).length === 0) player.isOut = true;
-    return cardToLose;
-};
-const endTurn = (gameData) => {
+    if (cardToLose) {
+      cardToLose.isRevealed = true;
+      gameData.actionLog.push(`${player.name} reveals a ${CHARACTERS[cardToLose.character].name}.`);
+    }
+    if (player.cards.filter(c => !c.isRevealed).length === 0) {
+      player.isOut = true;
+      gameData.actionLog.push(`${player.name} has been eliminated!`);
+    }
+  }
+
+  function endTurn() {
     const activePlayers = gameData.players.filter(p => !p.isOut);
     if (activePlayers.length === 1) {
-        gameData.status = "finished"; gameData.winner = activePlayers[0];
-        gameData.actionLog.push(`${activePlayers[0].name} is the winner!`);
+      gameData.status = "finished";
+      gameData.winner = activePlayers[0];
+      gameData.actionLog.push(`${activePlayers[0].name} is the winner!`);
     } else {
-        let nextPlayerIndex = (gameData.currentPlayerIndex + 1) % gameData.players.length;
-        while (gameData.players[nextPlayerIndex].isOut) nextPlayerIndex = (nextPlayerIndex + 1) % gameData.players.length;
-        gameData.currentPlayerIndex = nextPlayerIndex;
-        gameData.actionLog.push(`${gameData.players[nextPlayerIndex].name}'s turn.`);
+      let nextIdx = (gameData.currentPlayerIndex + 1) % gameData.players.length;
+      let loopGuard = 0;
+      while (gameData.players[nextIdx].isOut && loopGuard < gameData.players.length) {
+        nextIdx = (nextIdx + 1) % gameData.players.length;
+        loopGuard++;
+      }
+      gameData.currentPlayerIndex = nextIdx;
+      gameData.actionLog.push(`${gameData.players[nextIdx].name}'s turn.`);
     }
     gameData.pendingAction = null;
-    return gameData;
-};
-const resolveAction = (gameData) => {
-    const { players, pendingAction, deck } = gameData;
-    const actor = getPlayer(players, pendingAction.actorUid);
-    const target = getPlayer(players, pendingAction.targetUid);
-    switch(pendingAction.actionType) {
-        case 'tax': actor.coins += 3; break;
-        case 'foreign_aid': actor.coins += 2; break;
-        case 'steal': const stolen = Math.min(2, target.coins); actor.coins += stolen; target.coins -= stolen; break;
-        case 'assassinate': loseInfluence(target); break;
-        case 'exchange':
-            const unrevealedCards = actor.cards.filter(c => !c.isRevealed);
-            const newCards = [deck.pop(), deck.pop()];
-            // In a real UI, you'd let the player choose. Here we automate it.
-            // Put old cards back, take new cards.
-            unrevealedCards.forEach(c => deck.push(c.character));
-            shuffleDeck(deck);
-            actor.cards = actor.cards.map(c => c.isRevealed ? c : { character: deck.pop(), isRevealed: false });
+  }
+  
+  function resolveAction(action) {
+    gameData.actionLog.push(`The action "${action.actionType}" is successful.`);
+    const actionActor = getPlayer(gameData.players, action.actorUid);
+    const actionTarget = getPlayer(gameData.players, action.targetUid);
+    switch(action.actionType) {
+        case 'tax': actionActor.coins += 3; break;
+        case 'foreign_aid': actionActor.coins += 2; break;
+        case 'steal': const stolen = Math.min(2, actionTarget.coins); actionActor.coins += stolen; actionTarget.coins -= stolen; break;
+        case 'assassinate': loseInfluence(actionTarget); break;
+        case 'exchange': {
+            const unrevealed = actionActor.cards.filter(c => !c.isRevealed);
+            const drawn = [gameData.deck.pop(), gameData.deck.pop()].filter(Boolean);
+            const hand = [...unrevealed.map(c => c.character), ...drawn];
+            const toKeep = hand.slice(0, unrevealed.length);
+            const toReturn = hand.slice(unrevealed.length);
+            toReturn.forEach(c => gameData.deck.push(c));
+            shuffleDeck(gameData.deck);
+            let keepIdx = 0;
+            actionActor.cards = actionActor.cards.map(c => c.isRevealed ? c : { character: toKeep[keepIdx++], isRevealed: false });
             break;
+        }
     }
-    gameData.actionLog.push(`The action was successful.`);
-    return endTurn(gameData);
+    endTurn();
+  }
+
+  switch (type) {
+    case 'PERFORM_ACTION': {
+      const actor = getPlayer(gameData.players, payload.actorUid);
+      const { actionType, targetUid } = payload;
+      if (actionType === 'income') {
+        actor.coins++; gameData.actionLog.push(`${actor.name} takes Income.`); endTurn();
+      } else if (actionType === 'coup') {
+        if (actor.coins < 7) throw new Error("Not enough coins for Coup!");
+        const target = getPlayer(gameData.players, targetUid);
+        actor.coins -= 7; loseInfluence(target);
+        gameData.actionLog.push(`${actor.name} launches a Coup against ${target.name}.`); endTurn();
+      } else {
+        gameData.pendingAction = { type: 'action', actionType, actorUid: payload.actorUid, targetUid, responses: {} };
+        gameData.actionLog.push(`${actor.name} is attempting to use ${actionType}.`);
+      }
+      break;
+    }
+    case 'HANDLE_RESPONSE': {
+      const { pendingAction } = gameData;
+      const { responseType, blockCharacter } = payload;
+      const responder = getPlayer(gameData.players, payload.responderUid);
+      const actor = getPlayer(gameData.players, pendingAction.actorUid);
+      pendingAction.responses[responder.uid] = responseType;
+
+      if (responseType === 'challenge') {
+        const personChallenged = pendingAction.blocker ? getPlayer(gameData.players, pendingAction.blocker.uid) : actor;
+        const claim = pendingAction.blocker ? pendingAction.blocker.character : ACTION_CHARACTER_MAP[pendingAction.actionType];
+        gameData.actionLog.push(`${responder.name} challenges ${personChallenged.name}'s claim of ${claim}!`);
+        const hasCard = personChallenged.cards.some(c => !c.isRevealed && c.character === claim);
+        
+        if (hasCard) { // Challenge Failed
+          gameData.actionLog.push(`${personChallenged.name} reveals a ${CHARACTERS[claim].name}. The challenge fails!`);
+          loseInfluence(responder);
+          pendingAction.blocker ? endTurn() : resolveAction(pendingAction);
+        } else { // Challenge Succeeded
+          gameData.actionLog.push(`${personChallenged.name} was bluffing! The challenge succeeds!`);
+          loseInfluence(personChallenged);
+          pendingAction.blocker ? resolveAction(pendingAction) : endTurn();
+        }
+      } else if (responseType === 'block') {
+        pendingAction.type = 'block';
+        pendingAction.blocker = { uid: responder.uid, character: blockCharacter, blockerName: responder.name };
+        gameData.actionLog.push(`${responder.name} claims to block with a ${blockCharacter}.`);
+        pendingAction.responses = {}; // Reset for challenging the block
+      } else { // 'allow'
+        const activePlayers = gameData.players.filter(p => !p.isOut);
+        const playersWhoCanRespond = pendingAction.blocker ? [actor] : activePlayers.filter(p => p.uid !== actor.uid);
+        const allResponded = playersWhoCanRespond.every(p => pendingAction.responses[p.uid]);
+        if (allResponded) {
+          pendingAction.blocker ? endTurn() : resolveAction(pendingAction);
+        }
+      }
+      break;
+    }
+  }
+  return gameData;
 };
 
+// --- Exported Functions ---
 export const performAction = (gameData, actionType, actingPlayerUid, targetPlayerUid = null) => {
-  let newGameData = JSON.parse(JSON.stringify(gameData));
-  const { players, currentPlayerIndex } = newGameData;
-  const actingPlayer = getPlayer(players, actingPlayerUid);
-  if (!actingPlayer || players[currentPlayerIndex].uid !== actingPlayerUid) throw new Error("It's not your turn!");
-  
-  if (actionType === 'income') {
-    actingPlayer.coins++; newGameData.actionLog.push(`${actingPlayer.name} takes Income.`);
-    return endTurn(newGameData);
-  }
-  if (actionType === 'coup') {
-    if(actingPlayer.coins < 7) throw new Error("Not enough coins for Coup!");
-    const target = getPlayer(players, targetPlayerUid);
-    actingPlayer.coins -= 7;
-    loseInfluence(target);
-    newGameData.actionLog.push(`${actingPlayer.name} launches a Coup against ${target.name}.`);
-    return endTurn(newGameData);
-  }
-  
-  newGameData.pendingAction = {
-      actionType, actorUid: actingPlayerUid, targetUid: targetPlayerUid,
-      responses: {}, isChallengingBlock: false,
-  };
-  newGameData.actionLog.push(`${actingPlayer.name} is attempting to use ${actionType}.`);
-  return newGameData;
+  const event = { type: 'PERFORM_ACTION', payload: { actorUid: actingPlayerUid, actionType, targetUid: targetPlayerUid } };
+  return processGameEvent(JSON.parse(JSON.stringify(gameData)), event);
 };
 
 export const handleResponse = (gameData, responseType, respondingPlayerUid, blockCharacter = null) => {
-    let newGameData = JSON.parse(JSON.stringify(gameData));
-    const { players, pendingAction } = newGameData;
-    const respondingPlayer = getPlayer(players, respondingPlayerUid);
-    const actor = getPlayer(players, pendingAction.actorUid);
-    const blocker = pendingAction.blocker ? getPlayer(players, pendingAction.blocker.uid) : null;
-
-    if (!pendingAction || !respondingPlayer) throw new Error("Invalid response state.");
-    pendingAction.responses[respondingPlayerUid] = responseType;
-
-    if (responseType === 'challenge') {
-        const personBeingChallenged = blocker || actor;
-        const claim = blocker ? pendingAction.blocker.character : ACTION_CHARACTER_MAP[pendingAction.actionType];
-        newGameData.actionLog.push(`${respondingPlayer.name} challenges ${personBeingChallenged.name}'s claim of ${claim}!`);
-        const hasCard = personBeingChallenged.cards.some(c => !c.isRevealed && c.character === claim);
-
-        if (hasCard) { // Challenge Failed
-            const loser = respondingPlayer;
-            newGameData.actionLog.push(`${personBeingChallenged.name} reveals a ${claim}. The challenge fails!`);
-            loseInfluence(loser);
-            if (blocker) {
-                newGameData.actionLog.push(`${blocker.name}'s block is successful.`);
-                return endTurn(newGameData);
-            } else {
-                return resolveAction(newGameData);
-            }
-        } else { // Challenge Succeeded
-            const loser = personBeingChallenged;
-            newGameData.actionLog.push(`${loser.name} was bluffing! The challenge succeeds!`);
-            loseInfluence(loser);
-            if (blocker) {
-                return resolveAction(newGameData);
-            } else {
-                return endTurn(newGameData);
-            }
-        }
-    }
-    
-    if (responseType === 'block') {
-        pendingAction.blocker = { uid: respondingPlayerUid, character: blockCharacter, blockerName: respondingPlayer.name };
-        newGameData.actionLog.push(`${respondingPlayer.name} claims to have a ${blockCharacter} to block the action.`);
-        pendingAction.responses = {}; // Reset responses for the challenge-the-block phase
-        return newGameData;
-    }
-    
-    const activePlayers = players.filter(p => !p.isOut);
-    const playersWhoCanRespond = blocker 
-        ? activePlayers.filter(p => p.uid !== blocker.uid) 
-        : activePlayers.filter(p => p.uid !== actor.uid);
-
-    const allAllowed = playersWhoCanRespond.every(p => pendingAction.responses[p.uid] === 'allow');
-    
-    if (allAllowed) {
-        if (blocker) {
-            newGameData.actionLog.push(`The block is successful.`);
-            return endTurn(newGameData);
-        } else {
-            return resolveAction(newGameData);
-        }
-    }
-    
-    return newGameData;
-}
+  const event = { type: 'HANDLE_RESPONSE', payload: { responderUid: respondingPlayerUid, responseType, blockCharacter } };
+  return processGameEvent(JSON.parse(JSON.stringify(gameData)), event);
+};
 
