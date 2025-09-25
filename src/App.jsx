@@ -1,9 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { HomePage } from "./pages/HomePage";
-import { MomoTycoon } from "./games/momo-tycoon/MomoTycoon";
-import { Twenty48 } from "./games/twenty48/Twenty48";
-import { BaghChal } from "./games/bagh-chal/BaghChal";
-import { Coup } from "./games/coup/Coup";
+import { MomoTycoon } from "./games/momo-tycoon/MomoTycoon.jsx";
+import { Twenty48 } from "./games/twenty48/Twenty48.jsx";
+import { BaghChal } from "./games/bagh-chal/BaghChal.jsx";
+import { Coup } from "./games/coup/Coup.jsx";
 
 function App() {
   return (
@@ -23,4 +23,6 @@ function App() {
 }
 
 export default App;
+
+    
 
