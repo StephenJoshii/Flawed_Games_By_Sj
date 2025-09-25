@@ -1,13 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { use2048Logic } from './hooks/use2048Logic';
-import { GameBoard } from './components/GameBoard';
-import { GameHeader } from './components/GameHeader';
+import { use2048Logic } from './hooks/use2048Logic.js';
+import { GameBoard } from './components/GameBoard.jsx';
+import { GameHeader } from './components/GameHeader.jsx';
 import { Button } from '@/components/ui/button';
 
-export function Twenty48() {
+
+export function Game2048() {
   const { grid, score, bestScore, isGameOver, restartGame, move } = use2048Logic();
 
-  // --- Input Handling ---
   const touchStartRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -35,7 +35,6 @@ export function Twenty48() {
     const dx = touchEnd.x - touchStart.x;
     const dy = touchEnd.y - touchStart.y;
     
-    // Determine if it was a significant swipe
     if (Math.abs(dx) > 50 || Math.abs(dy) > 50) {
       if (Math.abs(dx) > Math.abs(dy)) {
         move(dx > 0 ? 'right' : 'left');
@@ -67,4 +66,3 @@ export function Twenty48() {
     </div>
   );
 }
-
