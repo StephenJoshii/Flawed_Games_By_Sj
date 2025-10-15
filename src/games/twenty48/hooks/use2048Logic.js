@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSound } from '@/hooks/useSound';
 
 // Key for saving the best score in local storage.
 const BEST_SCORE_KEY = '2048-best-score';
@@ -45,15 +46,17 @@ const slideRowLeft = (row) => {
 
 const mergeRowLeft = (row) => {
   let score = 0;
+  let merged = false;
   const newRow = [...row];
   for (let c = 0; c < 3; c++) {
     if (newRow[c] !== 0 && newRow[c] === newRow[c + 1]) {
       newRow[c] *= 2;
       score += newRow[c];
       newRow[c + 1] = 0;
+      merged = true;
     }
   }
-  return { row: newRow, score };
+  return { row: newRow, score, merged };
 };
 
 const canMove = (grid) => {
@@ -67,7 +70,6 @@ const canMove = (grid) => {
   return false;
 };
 
-// ✅ DEFINITIVE FIX: Create a single initializer function for the entire game state.
 const getInitialState = () => {
   let grid = createEmptyGrid();
   grid = addNewTile(grid);
@@ -87,12 +89,12 @@ const getInitialState = () => {
 export function use2048Logic() {
   const [gameState, setGameState] = useState(getInitialState);
   const { grid, score, bestScore, isGameOver } = gameState;
+  const play = useSound(); // 2. Initialize the sound player
 
   const restartGame = useCallback(() => {
     setGameState(getInitialState());
   }, []);
   
-  // This effect now only handles SAVING the best score, not loading it.
   useEffect(() => {
     if (score > bestScore) {
       const newBestScore = score;
@@ -107,12 +109,13 @@ export function use2048Logic() {
     let currentGrid = grid.map(row => [...row]);
     let tempGrid = currentGrid;
     let totalScore = 0;
+    let anyMerged = false;
     let rotations = 0;
 
     switch (direction) {
-      case 'up': rotations = 3; break;
+      case 'up': rotations = 1; break;
       case 'right': rotations = 2; break;
-      case 'down': rotations = 1; break;
+      case 'down': rotations = 3; break;
       default: rotations = 0;
     }
 
@@ -122,8 +125,9 @@ export function use2048Logic() {
 
     const processedGrid = tempGrid.map(row => {
       let newRow = slideRowLeft(row);
-      const { row: mergedRow, score: rowScore } = mergeRowLeft(newRow);
+      const { row: mergedRow, score: rowScore, merged } = mergeRowLeft(newRow);
       totalScore += rowScore;
+      if (merged) anyMerged = true;
       return slideRowLeft(mergedRow);
     });
 
@@ -137,15 +141,26 @@ export function use2048Logic() {
     if (moved) {
       const gridWithNewTile = addNewTile(finalGrid);
       const newScore = score + totalScore;
-      
+      const gameOver = !canMove(gridWithNewTile);
+
       setGameState({
         ...gameState,
         grid: gridWithNewTile,
         score: newScore,
-        isGameOver: !canMove(gridWithNewTile),
+        isGameOver: gameOver,
       });
+
+      // 3. Play sounds based on game events
+      if (anyMerged) {
+        play('merge');
+      } else {
+        play('move');
+      }
+      if (gameOver) {
+        play('gameOver');
+      }
     }
-  }, [grid, score, isGameOver, gameState]);
+  }, [grid, score, isGameOver, gameState, play]);
 
   return { grid, score, bestScore, isGameOver, restartGame, move };
 }
