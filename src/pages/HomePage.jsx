@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export function HomePage() {
   return (
@@ -51,13 +52,20 @@ export function HomePage() {
         </Card>
         
         {/* Updated Card for Bagh Chal */}
-        <Card className="border-dashed">
-           <CardHeader>
-            <CardTitle className="text-muted-foreground">Bagh Chal</CardTitle>
-            <CardDescription className="text-muted-foreground">The classic Nepali strategy game. Currently undergoing maintenance.</CardDescription>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle>Bagh Chal</CardTitle>
+                <CardDescription>The classic Nepali strategy game of tigers and goats.</CardDescription>
+              </div>
+              <Badge variant="destructive">Beta</Badge>
+            </div>
           </CardHeader>
-           <CardContent className="flex-grow flex items-end">
-            <Button disabled className="w-full">Unavailable</Button>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/bagh-chal" className="w-full">
+              <Button className="w-full">Play Now</Button>
+            </Link>
           </CardContent>
         </Card>
       </div>
