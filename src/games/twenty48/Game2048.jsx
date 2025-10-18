@@ -4,14 +4,21 @@ import { GameBoard } from './components/GameBoard.jsx';
 import { GameHeader } from './components/GameHeader.jsx';
 import { Button } from '@/components/ui/button';
 
-
 export function Game2048() {
-  const { grid, score, bestScore, isGameOver, restartGame, move } = use2048Logic();
+  const { grid, score, bestScore, isGameOver, restartGame, move, unlockAudio } = use2048Logic();
+  const hasUnlockedAudio = useRef(false);
 
-  const touchStartRef = useRef({ x: 0, y: 0 });
+  // This is the user gesture that will unlock the audio.
+  const handleFirstInteraction = () => {
+    if (!hasUnlockedAudio.current) {
+      unlockAudio();
+      hasUnlockedAudio.current = true;
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      handleFirstInteraction(); // Unlock audio on first key press
       e.preventDefault();
       switch (e.key) {
         case 'ArrowUp': move('up'); break;
@@ -22,25 +29,22 @@ export function Game2048() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [move]);
+  }, [move, unlockAudio]);
 
+  const touchStartRef = useRef({ x: 0, y: 0 });
   const handleTouchStart = (e) => {
+    handleFirstInteraction(); // Unlock audio on first touch
     touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
   };
 
   const handleTouchEnd = (e) => {
     const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
     const touchStart = touchStartRef.current;
-    
     const dx = touchEnd.x - touchStart.x;
     const dy = touchEnd.y - touchStart.y;
-    
     if (Math.abs(dx) > 50 || Math.abs(dy) > 50) {
-      if (Math.abs(dx) > Math.abs(dy)) {
-        move(dx > 0 ? 'right' : 'left');
-      } else {
-        move(dy > 0 ? 'down' : 'up');
-      }
+      if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+      else move(dy > 0 ? 'down' : 'up');
     }
   };
 
@@ -66,3 +70,4 @@ export function Game2048() {
     </div>
   );
 }
+
