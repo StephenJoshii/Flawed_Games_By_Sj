@@ -16,19 +16,22 @@ const getRandomCoordinate = (snake) => {
   return coordinate;
 };
 
-const initialState = {
-  snake: [{ x: 10, y: 10 }], // Snake starts in the middle
-  food: getRandomCoordinate([{ x: 10, y: 10 }]),
-  direction: { x: 0, y: -1 }, // Start moving up
-  isGameOver: false,
-  score: 0,
+const getInitialState = () => {
+  const start = { x: 10, y: 10 };
+  return {
+    snake: [start], // Snake starts in the middle
+    food: getRandomCoordinate([start]),
+    direction: { x: 0, y: -1 }, // Start moving up
+    isGameOver: false,
+    score: 0,
+  };
 };
 
 /**
  * A custom hook to manage the state and logic for the Snake game.
  */
 export function useSnakeLogic() {
-  const [gameState, setGameState] = useState(initialState);
+  const [gameState, setGameState] = useState(getInitialState);
   const { snake, food, direction, isGameOver, score } = gameState;
 
   // A ref to hold the game loop interval so it can be cleared.
@@ -37,16 +40,18 @@ export function useSnakeLogic() {
   const nextDirection = useRef(direction);
 
   const restartGame = useCallback(() => {
-    setGameState(initialState);
-    nextDirection.current = initialState.direction;
+    const initial = getInitialState();
+    setGameState(initial);
+    nextDirection.current = initial.direction;
   }, []);
 
   const changeDirection = useCallback((newDirection) => {
-    // Prevents the snake from immediately reversing direction.
-    if (direction.x + newDirection.x !== 0 || direction.y + newDirection.y !== 0) {
+    // Prevent immediate reversal by comparing against the buffered direction.
+    const current = nextDirection.current;
+    if (current.x + newDirection.x !== 0 || current.y + newDirection.y !== 0) {
       nextDirection.current = newDirection;
     }
-  }, [direction]);
+  }, []);
 
   useEffect(() => {
     if (isGameOver) {
@@ -54,7 +59,8 @@ export function useSnakeLogic() {
       return;
     }
 
-    // The main game loop, running at a set interval.
+    // The main game loop, running at a set interval. Depend only on isGameOver so the
+    // interval is not recreated every tick and we use functional updates inside.
     gameLoop.current = setInterval(() => {
       setGameState(prev => {
         const newSnake = [...prev.snake];
@@ -104,7 +110,7 @@ export function useSnakeLogic() {
     }, GAME_SPEED_MS);
 
     return () => clearInterval(gameLoop.current);
-  }, [snake, isGameOver]);
+  }, [isGameOver]);
 
   return {
     gridSize: GRID_SIZE,

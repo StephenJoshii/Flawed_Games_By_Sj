@@ -1,7 +1,5 @@
 // Renders the main game area for Snake.
 export function SnakeBoard({ gridSize, snake, food }) {
-  const grid = Array(gridSize).fill(null).map(() => Array(gridSize).fill(null));
-
   return (
     <div 
       className="bg-gray-900 border-4 border-gray-700 rounded-lg shadow-lg"
@@ -29,3 +27,4 @@ export function SnakeBoard({ gridSize, snake, food }) {
     </div>
   );
 }
+
