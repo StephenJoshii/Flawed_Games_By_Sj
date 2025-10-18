@@ -1,9 +1,10 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { HomePage } from "./pages/HomePage";
+import { HomePage } from "./pages/HomePage.jsx";
 import { MomoTycoon } from "./games/momo-tycoon/MomoTycoon.jsx";
 import { Game2048 } from "./games/twenty48/Game2048.jsx";
 import { BaghChal } from "./games/bagh-chal/BaghChal.jsx";
 import { Coup } from "./games/coup/Coup.jsx";
+import { Snake } from "./games/snake/Snake.jsx";
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="/play/bagh-chal" element={<BaghChal />} />
           <Route path="/play/coup" element={<Coup />} />
           <Route path="/play/coup/:gameId" element={<Coup />} />
+          <Route path="/play/snake" element={<Snake />} />
         </Routes>
       </Router>
     </main>
@@ -23,6 +25,4 @@ function App() {
 }
 
 export default App;
-
-    
 
