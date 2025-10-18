@@ -12,6 +12,19 @@ export function HomePage() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {/* Card for Snake */}
+        <Card className="flex flex-col transition-all duration-300 hover:scale-105 hover:shadow-xl">
+          <CardHeader>
+            <CardTitle>Snake</CardTitle>
+            <CardDescription>The timeless arcade classic. Grow your snake by eating food, but don't hit the walls or your own tail!</CardDescription>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/snake" className="w-full">
+              <Button className="w-full">Play Now</Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* Card for Coup */}
         <Card className="flex flex-col transition-all duration-300 hover:scale-105 hover:shadow-xl">
           <CardHeader>
