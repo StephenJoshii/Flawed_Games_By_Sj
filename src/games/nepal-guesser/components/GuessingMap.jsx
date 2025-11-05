@@ -49,12 +49,16 @@ export const GuessingMap = ({ onInit, guessMarker }) => {
   }, [guessMarker]);
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full relative">
       <div
         ref={mapContainerRef}
-        id="map"
-        className="w-full h-full rounded-lg border-2 border-gray-300"
+        className="w-full h-full"
       />
+      {!guessMarker && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-4 py-2 rounded-full text-sm pointer-events-none z-[1000] animate-pulse">
+          Click to place guess
+        </div>
+      )}
     </div>
   );
 };
