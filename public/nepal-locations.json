@@ -1,0 +1,102 @@
+[
+  {
+    "name": "Thamel, Kathmandu",
+    "lat": 27.7152,
+    "lng": 85.3124
+  },
+  {
+    "name": "Durbar Square, Kathmandu",
+    "lat": 27.7045,
+    "lng": 85.3077
+  },
+  {
+    "name": "Boudhanath Stupa",
+    "lat": 27.7215,
+    "lng": 85.3622
+  },
+  {
+    "name": "Swayambhunath (Monkey Temple)",
+    "lat": 27.7149,
+    "lng": 85.2907
+  },
+  {
+    "name": "Pashupatinath Temple",
+    "lat": 27.7104,
+    "lng": 85.3487
+  },
+  {
+    "name": "Patan Durbar Square",
+    "lat": 27.6729,
+    "lng": 85.3252
+  },
+  {
+    "name": "Bhaktapur Durbar Square",
+    "lat": 27.6723,
+    "lng": 85.4277
+  },
+  {
+    "name": "Pokhara Lakeside",
+    "lat": 28.2096,
+    "lng": 83.9590
+  },
+  {
+    "name": "Sarangkot, Pokhara",
+    "lat": 28.2447,
+    "lng": 83.9541
+  },
+  {
+    "name": "Phewa Lake, Pokhara",
+    "lat": 28.2089,
+    "lng": 83.9590
+  },
+  {
+    "name": "Chitwan National Park Entrance",
+    "lat": 27.5291,
+    "lng": 84.3542
+  },
+  {
+    "name": "Lumbini (Buddha's Birthplace)",
+    "lat": 27.4833,
+    "lng": 83.2764
+  },
+  {
+    "name": "Nagarkot",
+    "lat": 27.7170,
+    "lng": 85.5219
+  },
+  {
+    "name": "Dhulikhel",
+    "lat": 27.6200,
+    "lng": 85.5447
+  },
+  {
+    "name": "Bandipur",
+    "lat": 27.9383,
+    "lng": 84.4200
+  },
+  {
+    "name": "Gorkha Durbar",
+    "lat": 28.0072,
+    "lng": 84.6247
+  },
+  {
+    "name": "Janakpur",
+    "lat": 26.7288,
+    "lng": 85.9250
+  },
+  {
+    "name": "Biratnagar Main Road",
+    "lat": 26.4525,
+    "lng": 87.2718
+  },
+  {
+    "name": "Hetauda",
+    "lat": 27.4281,
+    "lng": 85.0324
+  },
+  {
+    "name": "Butwal",
+    "lat": 27.7005,
+    "lng": 83.4483
+  }
+]

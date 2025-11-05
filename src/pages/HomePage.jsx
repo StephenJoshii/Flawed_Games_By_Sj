@@ -81,6 +81,30 @@ export function HomePage() {
             </Link>
           </CardContent>
         </Card>
+
+        {/* Card for Nepal Geo-Guesser */}
+        <Card className="flex flex-col transition-all duration-300 hover:scale-105 hover:shadow-xl bg-gradient-to-br from-blue-50 to-green-50">
+          <CardHeader>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  🏔️ Nepal Geo-Guesser
+                </CardTitle>
+                <CardDescription>
+                  Can you guess where you are in Nepal? Explore Street View and test your geography skills!
+                </CardDescription>
+              </div>
+              <Badge className="bg-green-600">New</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Link to="/play/nepal-guesser" className="w-full">
+              <Button className="w-full bg-gradient-to-r from-blue-600 to-green-600 hover:from-blue-700 hover:to-green-700">
+                Play Now
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

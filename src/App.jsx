@@ -5,6 +5,7 @@ import { Game2048 } from "./games/twenty48/Game2048.jsx";
 import { BaghChal } from "./games/bagh-chal/BaghChal.jsx";
 import { Coup } from "./games/coup/Coup.jsx";
 import { Snake } from "./games/snake/Snake.jsx";
+import NepalGeoGuesser from "./games/nepal-guesser/NepalGeoGuesser.jsx";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
           <Route path="/play/coup" element={<Coup />} />
           <Route path="/play/coup/:gameId" element={<Coup />} />
           <Route path="/play/snake" element={<Snake />} />
+          <Route path="/play/nepal-guesser" element={<NepalGeoGuesser />} />
         </Routes>
       </Router>
     </main>
