@@ -5,17 +5,26 @@ import { Badge } from '@/components/ui/badge';
 export const ResultsPanel = ({ results, onNextRound, guessMarker }) => {
   if (!results) {
     return (
-      <Card className="bg-gray-50">
-        <CardHeader>
-          <CardTitle className="text-lg">Instructions</CardTitle>
+      <Card className="bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200">
+        <CardHeader className="pb-2 pt-3 px-4">
+          <CardTitle className="text-sm font-semibold">How to Play</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p>1. Explore the Street View to figure out where you are in Nepal</p>
-          <p>2. Click on the map to place your guess marker</p>
-          <p>3. Click "Make Guess" to see how close you were!</p>
+        <CardContent className="space-y-1.5 text-xs px-4 pb-3">
+          <p className="flex items-start gap-2">
+            <span className="text-blue-600 font-bold">1.</span>
+            <span>Explore the Street View</span>
+          </p>
+          <p className="flex items-start gap-2">
+            <span className="text-blue-600 font-bold">2.</span>
+            <span>Click on map to guess</span>
+          </p>
+          <p className="flex items-start gap-2">
+            <span className="text-blue-600 font-bold">3.</span>
+            <span>See your score!</span>
+          </p>
           {guessMarker && (
-            <Badge className="mt-2 bg-blue-500">
-              Guess placed at: {guessMarker.lat.toFixed(4)}, {guessMarker.lng.toFixed(4)}
+            <Badge className="mt-2 bg-blue-500 text-xs">
+              ✓ Guess placed
             </Badge>
           )}
         </CardContent>
@@ -40,38 +49,39 @@ export const ResultsPanel = ({ results, onNextRound, guessMarker }) => {
   };
 
   return (
-    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200">
-      <CardHeader>
-        <CardTitle className="text-lg">Round Results</CardTitle>
+    <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 shadow-lg">
+      <CardHeader className="pb-2 pt-3 px-4">
+        <CardTitle className="text-sm font-semibold">Round Results</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-          <p className="text-sm text-gray-600 mb-1">Score</p>
-          <p className={`text-3xl font-bold ${getScoreColor(results.score)}`}>
+      <CardContent className="space-y-2 px-4 pb-3">
+        <div className="text-center p-2 bg-white rounded-lg shadow-sm">
+          <p className="text-xs text-gray-600 mb-0.5">Score</p>
+          <p className={`text-2xl font-bold ${getScoreColor(results.score)}`}>
             {results.score.toLocaleString()}
           </p>
         </div>
         
-        <div className="space-y-2">
-          <div className="flex justify-between items-center text-sm">
-            <span className="font-medium">Distance:</span>
+        <div className="space-y-1.5 text-xs">
+          <div className="flex justify-between items-center">
+            <span className="font-medium text-gray-700">Distance:</span>
             <span className="font-bold">{results.distance} km</span>
           </div>
           
-          <div className="flex justify-between items-center text-sm">
-            <span className="font-medium">Rating:</span>
-            <span className="text-lg">{getDistanceRating(parseFloat(results.distance))}</span>
+          <div className="flex justify-between items-center">
+            <span className="font-medium text-gray-700">Rating:</span>
+            <span>{getDistanceRating(parseFloat(results.distance))}</span>
           </div>
           
-          <div className="bg-white p-2 rounded text-sm">
-            <span className="font-medium">Actual Location:</span>
-            <p className="text-blue-600 mt-1">{results.locationName}</p>
+          <div className="bg-white p-2 rounded text-xs">
+            <span className="font-medium text-gray-700">Location:</span>
+            <p className="text-blue-600 mt-0.5 font-semibold">{results.locationName}</p>
           </div>
         </div>
 
         <Button
           onClick={onNextRound}
-          className="w-full bg-green-600 hover:bg-green-700"
+          size="sm"
+          className="w-full bg-green-600 hover:bg-green-700 h-9"
         >
           Next Round →
         </Button>

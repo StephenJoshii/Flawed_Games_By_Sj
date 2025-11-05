@@ -130,71 +130,76 @@ const NepalGeoGuesser = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-br from-slate-100 to-blue-50 p-4">
-      <div className="max-w-7xl mx-auto h-full flex flex-col gap-4">
+    <div className="h-screen w-screen bg-gradient-to-br from-slate-50 to-blue-50 overflow-hidden">
+      <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">
-              🏔️ Nepal Geo-Guesser
-            </h1>
-            <p className="text-sm text-gray-600">
-              A Flawed Game by SJ - Can you guess where you are in Nepal?
-            </p>
+        <div className="flex-shrink-0 bg-white shadow-sm border-b px-6 py-4">
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                🏔️ Nepal Geo-Guesser
+              </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Explore Nepal through Street View • Click the map to guess your location
+              </p>
+            </div>
+            <GameInfo
+              round={round}
+              totalScore={totalScore}
+              onReset={resetGame}
+            />
           </div>
-          <GameInfo
-            round={round}
-            totalScore={totalScore}
-            onReset={resetGame}
-          />
         </div>
 
         {/* Main Game Area */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-0">
-          {/* Street View - Takes 2 columns */}
-          <div className="lg:col-span-2 bg-white rounded-lg shadow-lg overflow-hidden">
-            <StreetViewPanel onInit={initStreetView} />
-          </div>
-
-          {/* Right Panel - Map and Controls */}
-          <div className="flex flex-col gap-4">
-            {/* Map */}
-            <div className="flex-1 bg-white rounded-lg shadow-lg overflow-hidden min-h-[300px]">
-              <GuessingMap
-                onInit={initMap}
-                guessMarker={guessMarker}
-              />
+        <div className="flex-1 min-h-0 p-4">
+          <div className="max-w-screen-2xl mx-auto h-full grid grid-cols-1 lg:grid-cols-12 gap-4">
+            {/* Street View - Takes 8 columns (2/3 of screen) */}
+            <div className="lg:col-span-8 bg-black rounded-lg shadow-xl overflow-hidden h-full">
+              <StreetViewPanel onInit={initStreetView} />
             </div>
 
-            {/* Controls */}
-            <div className="space-y-3">
-              {/* Guess Button */}
-              {!results && (
-                <Button
-                  onClick={handleGuess}
-                  disabled={!guessMarker}
-                  className="w-full h-12 text-lg font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
-                >
-                  {guessMarker ? '🎯 Make Guess' : '📍 Click on Map First'}
-                </Button>
-              )}
+            {/* Right Panel - Map and Controls - Takes 4 columns (1/3 of screen) */}
+            <div className="lg:col-span-4 flex flex-col gap-4 h-full">
+              {/* Map - Takes more space */}
+              <div className="flex-[2] bg-white rounded-lg shadow-xl overflow-hidden min-h-[400px]">
+                <GuessingMap
+                  onInit={initMap}
+                  guessMarker={guessMarker}
+                />
+              </div>
 
-              {/* Results Panel */}
-              <ResultsPanel
-                results={results}
-                onNextRound={nextRound}
-                guessMarker={guessMarker}
-              />
+              {/* Controls - Takes less space */}
+              <div className="flex-[1] space-y-3 min-h-0">
+                {/* Guess Button */}
+                {!results && (
+                  <Button
+                    onClick={handleGuess}
+                    disabled={!guessMarker}
+                    className="w-full h-14 text-lg font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-lg"
+                  >
+                    {guessMarker ? '🎯 Make Guess' : '📍 Click on Map First'}
+                  </Button>
+                )}
+
+                {/* Results Panel */}
+                <ResultsPanel
+                  results={results}
+                  onNextRound={nextRound}
+                  guessMarker={guessMarker}
+                />
+              </div>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="text-center text-xs text-gray-500">
-          <p>
-            Powered by Google Street View & OpenStreetMap | 
-            Part of the "Flawed Games by SJ" Collection
-          </p>
+        <div className="flex-shrink-0 bg-white border-t py-2 px-6">
+          <div className="max-w-screen-2xl mx-auto text-center text-xs text-gray-500">
+            <p>
+              Powered by Google Street View & OpenStreetMap | Part of the "Flawed Games by SJ" Collection
+            </p>
+          </div>
         </div>
       </div>
     </div>
