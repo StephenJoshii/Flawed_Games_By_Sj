@@ -61,17 +61,42 @@ const NepalGeoGuesser = () => {
 
   if (googleMapsError) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-red-100 to-orange-100">
-        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-red-100 to-orange-100 p-4">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-2xl">
           <div className="text-6xl mb-4">🗺️</div>
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Google Maps Error</h2>
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Google Maps API Error</h2>
           <p className="text-gray-700 mb-4">{googleMapsError}</p>
-          <p className="text-sm text-gray-500 mb-4">
-            Make sure you've added your Google Maps API key to the .env.local file.
-          </p>
-          <Button onClick={() => window.location.reload()}>
-            Reload Page
-          </Button>
+          
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 text-left">
+            <p className="text-sm font-semibold text-yellow-800 mb-2">Common Causes:</p>
+            <ul className="text-sm text-yellow-700 list-disc list-inside space-y-1">
+              <li>API key is restricted and doesn't allow localhost</li>
+              <li>Required APIs not enabled (Maps JavaScript API, Street View API)</li>
+              <li>API key is invalid or expired</li>
+            </ul>
+          </div>
+
+          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4 text-left">
+            <p className="text-sm font-semibold text-blue-800 mb-2">Quick Fix:</p>
+            <ol className="text-sm text-blue-700 list-decimal list-inside space-y-1">
+              <li>Go to <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a></li>
+              <li>Click your API key</li>
+              <li>Add <code className="bg-blue-100 px-1 rounded">http://localhost:5173/*</code> to Website restrictions</li>
+              <li>Save and wait 1-2 minutes</li>
+            </ol>
+          </div>
+
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => window.location.reload()} className="bg-blue-600">
+              Reload Page
+            </Button>
+            <Button 
+              onClick={() => window.open('https://console.cloud.google.com/google/maps-apis/credentials', '_blank')} 
+              variant="outline"
+            >
+              Open Google Console
+            </Button>
+          </div>
         </div>
       </div>
     );

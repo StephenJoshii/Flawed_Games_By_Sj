@@ -228,21 +228,26 @@ export const useNepalGuesserLogic = () => {
       return;
     }
 
-    panoramaRef.current = new window.google.maps.StreetViewPanorama(
-      panoramaElement,
-      {
-        position: { lat: 27.7172, lng: 85.3240 }, // Default Kathmandu
-        pov: { heading: 34, pitch: 10 },
-        addressControl: false,
-        linksControl: true,
-        panControl: true,
-        enableCloseButton: false,
-        zoomControl: true,
-        fullscreenControl: false
-      }
-    );
+    try {
+      panoramaRef.current = new window.google.maps.StreetViewPanorama(
+        panoramaElement,
+        {
+          position: { lat: 27.7172, lng: 85.3240 }, // Default Kathmandu
+          pov: { heading: 34, pitch: 10 },
+          addressControl: false,
+          linksControl: true,
+          panControl: true,
+          enableCloseButton: false,
+          zoomControl: true,
+          fullscreenControl: false
+        }
+      );
 
-    streetViewServiceRef.current = new window.google.maps.StreetViewService();
+      streetViewServiceRef.current = new window.google.maps.StreetViewService();
+    } catch (err) {
+      console.error('Google Maps initialization error:', err);
+      setError(`Google Maps Error: ${err.message}. Check if your API key allows requests from localhost.`);
+    }
   }, []);
 
   /**
@@ -251,28 +256,36 @@ export const useNepalGuesserLogic = () => {
   const initMap = useCallback((mapElement) => {
     if (!window.L) {
       setError('Leaflet not loaded');
-      return;
+      return null;
     }
 
     // Check if map is already initialized
     if (mapRef.current) {
       console.warn('Map already initialized, skipping...');
-      return;
+      return mapRef.current;
     }
 
-    // Create map centered on Nepal
-    mapRef.current = window.L.map(mapElement).setView([28.3949, 84.1240], 7);
+    try {
+      // Create map centered on Nepal
+      mapRef.current = window.L.map(mapElement).setView([28.3949, 84.1240], 7);
 
-    // Add OpenStreetMap tiles
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
-    }).addTo(mapRef.current);
+      // Add OpenStreetMap tiles
+      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(mapRef.current);
 
-    // Add click listener for placing guess marker
-    mapRef.current.on('click', (e) => {
-      placeGuessMarker(e.latlng);
-    });
+      // Add click listener for placing guess marker
+      mapRef.current.on('click', (e) => {
+        placeGuessMarker(e.latlng);
+      });
+
+      return mapRef.current;
+    } catch (err) {
+      console.error('Error initializing map:', err);
+      setError(`Failed to initialize map: ${err.message}`);
+      return null;
+    }
   }, [placeGuessMarker]);
 
   /**
