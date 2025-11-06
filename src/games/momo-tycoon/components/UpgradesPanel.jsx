@@ -12,7 +12,7 @@ const ICONS = {
 
 const UpgradeItem = ({ upgrade, level, money, onPurchase }) => {
   const isMaxLevel = level >= upgrade.maxLevel;
-  const cost = isMaxLevel ? 0 : upgrade.getCost(level);
+  const cost = isMaxLevel ? 0 : upgrade.getCost(level + 1);
   const canAfford = money >= cost;
 
   return (
