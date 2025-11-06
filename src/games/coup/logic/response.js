@@ -1,139 +1,160 @@
-import { CHARACTERS, ACTION_CHARACTER_MAP } from './state.js';
+import { ACTIONS, ACTION_CHARACTER_MAP } from './state.js';
+import { 
+  getPlayer, 
+  loseInfluence, 
+  returnAndShuffleCard, 
+  advanceTurn, 
+  resolveActionSuccess, 
+  resolveActionBlocked 
+} from './action.js';
 
-// --- Helper Functions ---
-// These are duplicated from actions.js for clarity in this step.
-// In a final refactor, they could be moved to a shared helpers.js file.
-
-const getPlayer = (players, uid) => players.find(p => p.uid === uid);
-
-const shuffleDeck = (deck) => {
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-};
-
-const loseInfluence = (player, gameData) => {
-    const cardToLose = player.cards.find(c => !c.isRevealed);
-    if (cardToLose) {
-      cardToLose.isRevealed = true;
-      gameData.actionLog.push(`${player.name} reveals a ${CHARACTERS[cardToLose.character].name}.`);
-    }
-    if (player.cards.filter(c => !c.isRevealed).length === 0) {
-      player.isOut = true;
-      gameData.actionLog.push(`${player.name} has been eliminated!`);
-    }
-};
-
-const endTurn = (gameData) => {
-    const activePlayers = gameData.players.filter(p => !p.isOut);
-    if (activePlayers.length <= 1) {
-        gameData.status = "finished";
-        gameData.winner = activePlayers[0] || null;
-        gameData.actionLog.push(activePlayers.length === 1 ? `${activePlayers[0].name} is the winner!` : "The game is a draw!");
-    } else {
-        let nextIdx = (gameData.currentPlayerIndex + 1) % gameData.players.length;
-        let loopGuard = 0;
-        while (gameData.players[nextIdx].isOut && loopGuard < gameData.players.length) {
-            nextIdx = (nextIdx + 1) % gameData.players.length;
-            loopGuard++;
-        }
-        gameData.currentPlayerIndex = nextIdx;
-        gameData.actionLog.push(`${gameData.players[nextIdx].name}'s turn.`);
-    }
-    gameData.pendingAction = null;
-};
-
-const resolveAction = (gameData) => {
-    const { players, pendingAction, deck } = gameData;
-    const actor = getPlayer(players, pendingAction.actorUid);
-    const target = getPlayer(players, pendingAction.targetUid);
-    gameData.actionLog.push(`The action "${pendingAction.actionType}" is successful.`);
-    switch(pendingAction.actionType) {
-        case 'tax': actor.coins += 3; break;
-        case 'foreign_aid': actor.coins += 2; break;
-        case 'steal': const stolen = Math.min(2, target.coins); actor.coins += stolen; target.coins -= stolen; break;
-        case 'assassinate': loseInfluence(target, gameData); break;
-        case 'exchange': {
-            const unrevealed = actor.cards.filter(c => !c.isRevealed);
-            const drawn = [deck.pop(), deck.pop()].filter(Boolean);
-            const hand = [...unrevealed.map(c => c.character), ...drawn];
-            const toKeep = hand.slice(0, unrevealed.length);
-            const toReturn = hand.slice(unrevealed.length);
-            toReturn.forEach(c => deck.push(c));
-            shuffleDeck(deck);
-            let keepIdx = 0;
-            actor.cards = actor.cards.map(c => c.isRevealed ? c : { character: toKeep[keepIdx++], isRevealed: false });
-            break;
-        }
-    }
-    endTurn(gameData);
-};
-
-
-// --- Main Response Logic ---
+// --- Response Handling Logic ---
 
 export function handleResponse(gameData, responseType, respondingPlayerUid, blockCharacter = null) {
-    const newGameData = JSON.parse(JSON.stringify(gameData));
-    const { players, pendingAction } = newGameData;
-    const respondingPlayer = getPlayer(players, respondingPlayerUid);
-    const actor = getPlayer(players, pendingAction.actorUid);
-    const blocker = pendingAction.blocker ? getPlayer(players, pendingAction.blocker.uid) : null;
-
-    if (!pendingAction || !respondingPlayer) {
-        throw new Error("Invalid response state.");
-    }
-    pendingAction.responses[respondingPlayerUid] = responseType;
-
-    if (responseType === 'challenge') {
-        const personChallenged = blocker || actor;
-        const claim = blocker ? pendingAction.blocker.character : ACTION_CHARACTER_MAP[pendingAction.actionType];
-        newGameData.actionLog.push(`${respondingPlayer.name} challenges ${personChallenged.name}'s claim of ${claim}!`);
-        const hasCard = personChallenged.cards.some(c => !c.isRevealed && c.character === claim);
-        
-        if (hasCard) { // Challenge Failed
-            newGameData.actionLog.push(`${personChallenged.name} reveals a ${CHARACTERS[claim].name}. The challenge fails!`);
-            loseInfluence(respondingPlayer, newGameData);
-            if (blocker) {
-                endTurn(newGameData); // Block succeeds
-            } else {
-                resolveAction(newGameData); // Action succeeds
-            }
-        } else { // Challenge Succeeded
-            newGameData.actionLog.push(`${personChallenged.name} was bluffing! The challenge succeeds!`);
-            loseInfluence(personChallenged, newGameData);
-            if (blocker) {
-                resolveAction(newGameData); // Block fails, action succeeds
-            } else {
-                endTurn(newGameData); // Action fails
-            }
-        }
-        return newGameData;
-    }
+  const newGameData = JSON.parse(JSON.stringify(gameData));
+  const { pendingAction } = newGameData;
+  
+  if (!pendingAction) {
+    throw new Error("No pending action to respond to!");
+  }
+  
+  const responder = getPlayer(newGameData.players, respondingPlayerUid);
+  if (!responder || responder.isOut) {
+    throw new Error("Invalid responder!");
+  }
+  
+  // Check if this player can respond
+  if (!pendingAction.awaitingResponseFrom?.includes(respondingPlayerUid)) {
+    throw new Error("You cannot respond to this action!");
+  }
+  
+  const action = ACTIONS[pendingAction.actionType];
+  const actor = getPlayer(newGameData.players, pendingAction.actorUid);
+  
+  // Handle PASS response
+  if (responseType === 'pass') {
+    pendingAction.responses[respondingPlayerUid] = 'pass';
+    pendingAction.awaitingResponseFrom = pendingAction.awaitingResponseFrom.filter(
+      uid => uid !== respondingPlayerUid
+    );
     
-    if (responseType === 'block') {
-        pendingAction.type = 'block';
-        pendingAction.blocker = { uid: respondingPlayerUid, character: blockCharacter, blockerName: respondingPlayer.name };
-        newGameData.actionLog.push(`${respondingPlayer.name} claims to block with a ${blockCharacter}.`);
-        pendingAction.responses = {}; // Reset responses for the challenge-the-block phase
-        return newGameData;
-    }
-    
-    // Check if all players have responded with 'allow'
-    const activePlayers = players.filter(p => !p.isOut);
-    const playersWhoCanRespond = blocker ? [actor] : activePlayers.filter(p => p.uid !== actor.uid);
-
-    const allAllowed = playersWhoCanRespond.every(p => pendingAction.responses[p.uid] === 'allow');
-    
-    if (allAllowed) {
-        if (blocker) {
-            newGameData.actionLog.push(`The block is successful.`);
-            endTurn(newGameData);
-        } else {
-            resolveAction(newGameData);
-        }
+    // Check if everyone has passed
+    if (pendingAction.awaitingResponseFrom.length === 0) {
+      if (pendingAction.type === 'awaiting_response') {
+        // Action succeeds
+        resolveActionSuccess(newGameData);
+      } else if (pendingAction.type === 'awaiting_block_response') {
+        // Block succeeds
+        resolveActionBlocked(newGameData);
+      }
     }
     
     return newGameData;
+  }
+  
+  // Handle CHALLENGE response
+  if (responseType === 'challenge') {
+    const challengedPlayer = pendingAction.type === 'awaiting_block_response' 
+      ? getPlayer(newGameData.players, pendingAction.blockingPlayerUid)
+      : actor;
+    
+    const claimedCharacter = pendingAction.type === 'awaiting_block_response'
+      ? pendingAction.blockingCharacter
+      : ACTION_CHARACTER_MAP[pendingAction.actionType];
+    
+    newGameData.actionLog.push(
+      `⚔️ ${responder.name} challenges ${challengedPlayer.name}'s claim of ${claimedCharacter}!`
+    );
+    
+    // Check if challenged player has the card
+    const hasCard = challengedPlayer.cards.some(
+      c => !c.isRevealed && c.character === claimedCharacter
+    );
+    
+    if (hasCard) {
+      // Challenge FAILED - challenger loses influence
+      newGameData.actionLog.push(
+        `✅ ${challengedPlayer.name} reveals ${claimedCharacter}! Challenge failed!`
+      );
+      loseInfluence(responder, newGameData);
+      returnAndShuffleCard(challengedPlayer, claimedCharacter, newGameData);
+      
+      // Resolve based on what was challenged
+      if (pendingAction.type === 'awaiting_block_response') {
+        // Block succeeds
+        resolveActionBlocked(newGameData);
+      } else {
+        // Action succeeds
+        resolveActionSuccess(newGameData);
+      }
+    } else {
+      // Challenge SUCCEEDED - challenged player was bluffing
+      newGameData.actionLog.push(
+        `❌ ${challengedPlayer.name} was bluffing! Challenge succeeded!`
+      );
+      loseInfluence(challengedPlayer, newGameData);
+      
+      // Resolve based on what was challenged
+      if (pendingAction.type === 'awaiting_block_response') {
+        // Block fails, action succeeds
+        resolveActionSuccess(newGameData);
+      } else {
+        // Action fails
+        const { actorUid, resolvedCost } = pendingAction;
+        const failedActor = getPlayer(newGameData.players, actorUid);
+        
+        // Refund if action had cost
+        if (resolvedCost > 0) {
+          failedActor.coins += resolvedCost;
+          newGameData.actionLog.push(
+            `${failedActor.name} gets refunded ${resolvedCost} coin${resolvedCost !== 1 ? 's' : ''}.`
+          );
+        }
+        
+        advanceTurn(newGameData);
+      }
+    }
+    
+    return newGameData;
+  }
+  
+  // Handle BLOCK response
+  if (responseType === 'block') {
+    if (!action.canBeBlocked) {
+      throw new Error("This action cannot be blocked!");
+    }
+    
+    if (!blockCharacter) {
+      throw new Error("You must specify which character you're blocking with!");
+    }
+    
+    // Verify this character can block this action
+    if (!action.blockedBy?.includes(blockCharacter)) {
+      throw new Error(`${blockCharacter} cannot block ${action.name}!`);
+    }
+    
+    // Only the target can block targeted actions (except Foreign Aid which anyone can block)
+    if (pendingAction.targetUid && pendingAction.actionType !== 'foreign_aid') {
+      if (respondingPlayerUid !== pendingAction.targetUid) {
+        throw new Error("Only the target can block this action!");
+      }
+    }
+    
+    newGameData.actionLog.push(
+      `🛡️ ${responder.name} claims to block with ${blockCharacter}!`
+    );
+    
+    // Set up block challenge phase
+    // Only the actor can challenge the block
+    pendingAction.type = 'awaiting_block_response';
+    pendingAction.blockingPlayerUid = respondingPlayerUid;
+    pendingAction.blockingCharacter = blockCharacter;
+    pendingAction.awaitingResponseFrom = [pendingAction.actorUid];
+    pendingAction.responses = {};
+    
+    return newGameData;
+  }
+  
+  throw new Error("Invalid response type!");
 }
+
