@@ -13,8 +13,8 @@ export function MomoTycoon() {
 
   return (
     <>
-      <Toaster richColors position="top-right" />
-      <div className="max-w-7xl mx-auto p-4 md:p-8"> {/* Added padding for game view */}
+      <Toaster richColors position="top-right" duration={2000} />
+      <div className="max-w-7xl mx-auto p-4 md:p-8 relative"> {/* Added padding for game view */}
         <Header
           money={game.money}
           momoStock={game.momoStock}
@@ -22,6 +22,8 @@ export function MomoTycoon() {
           dailyGoal={game.dailyGoal}
           moneyEarnedToday={game.moneyEarnedToday}
           reputation={game.reputation}
+          isPaused={game.isPaused}
+          onTogglePause={game.togglePause}
         />
         
         <EventBanner activeEvent={game.activeEvent} />

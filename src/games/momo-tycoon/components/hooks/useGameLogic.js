@@ -50,9 +50,14 @@ export function useGameLogic({ notify }) {
   const [gameState, setGameState] = useState('playing');
   const [moneyEarnedToday, setMoneyEarnedToday] = useState(0);
   const [activeEvent, setActiveEvent] = useState(null);
+  const [isPaused, setIsPaused] = useState(false);
   
   const notifyRef = useRef(notify);
   useEffect(() => { notifyRef.current = notify; }, [notify]);
+
+  const togglePause = useCallback(() => {
+    setIsPaused(prev => !prev);
+  }, []);
 
   const dailyGoal = useMemo(() => 200 + (day - 1) * 100, [day]);
 
@@ -94,7 +99,7 @@ export function useGameLogic({ notify }) {
   const buyIngredients = useCallback(() => {
     setGameStateData(prev => {
       if (prev.money >= 25) {
-        notifyRef.current.success("Purchased 5 flour and 5 fillings.");
+        // Removed notification - less annoying
         return { ...prev, money: prev.money - 25, flour: prev.flour + 5, filling: prev.filling + 5 };
       }
       notifyRef.current.error("Not enough money for ingredients!");
@@ -123,7 +128,7 @@ export function useGameLogic({ notify }) {
           setGameStateData(p => ({ ...p, momoStock: p.momoStock + 10 }));
           setIsMakingMomo(false);
           setMakingProgress(0);
-          notifyRef.current.success("A fresh batch of 10 momos is ready!");
+          // Removed notification - less annoying
         }
       }, 50);
       return { ...prev, flour: prev.flour - 1, filling: prev.filling - 1 };
@@ -177,7 +182,7 @@ export function useGameLogic({ notify }) {
       
       const cost = config.getCost(currentLevel + 1);
       if (prev.money >= cost) {
-        notifyRef.current.success(`${config.name} upgraded to Level ${currentLevel + 1}!`);
+        // Removed notification - less annoying
         return {
           ...prev,
           money: prev.money - cost,
@@ -194,7 +199,7 @@ export function useGameLogic({ notify }) {
   useEffect(() => { localStorage.setItem(SAVE_GAME_KEY, JSON.stringify(gameStateData)); }, [gameStateData]);
 
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isPaused) return;
     let customerTimeout;
     const spawnLoop = () => {
       const { customerSpawnMin, customerSpawnMax } = derivedValues;
@@ -206,10 +211,10 @@ export function useGameLogic({ notify }) {
     };
     spawnLoop();
     return () => clearTimeout(customerTimeout);
-  }, [gameState, derivedValues]);
+  }, [gameState, derivedValues, isPaused]);
 
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isPaused) return;
     const gameTick = setInterval(() => {
       setGameStateData(prev => {
         const now = Date.now();
@@ -229,10 +234,10 @@ export function useGameLogic({ notify }) {
       });
     }, 100);
     return () => clearInterval(gameTick);
-  }, [gameState]);
+  }, [gameState, isPaused]);
 
   useEffect(() => {
-    if (gameState !== 'playing' || activeEvent) return;
+    if (gameState !== 'playing' || activeEvent || isPaused) return;
     const eventInterval = setInterval(() => {
       if (Math.random() > 0.7) {
         const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
@@ -241,22 +246,22 @@ export function useGameLogic({ notify }) {
       }
     }, 15000);
     return () => clearInterval(eventInterval);
-  }, [gameState, activeEvent]);
+  }, [gameState, activeEvent, isPaused]);
 
   useEffect(() => {
-    if (!activeEvent) return;
+    if (!activeEvent || isPaused) return;
     const countdownInterval = setInterval(() => {
       const elapsedTime = Date.now() - activeEvent.startTime;
       const newTimeLeft = activeEvent.duration - elapsedTime;
       if (newTimeLeft <= 0) {
         setActiveEvent(null);
-        notifyRef.current.success("Things are back to normal.");
+        // Remove notification - less annoying
       } else {
         setActiveEvent(prev => ({ ...prev, timeLeft: newTimeLeft }));
       }
     }, 1000);
     return () => clearInterval(countdownInterval);
-  }, [activeEvent]);
+  }, [activeEvent, isPaused]);
   
   useEffect(() => {
     if (gameState === 'day_complete') {
@@ -277,8 +282,9 @@ export function useGameLogic({ notify }) {
 
   return {
     money, flour, filling, momoStock, day, customers, isMakingMomo, makingProgress, lastServedInfo,
-    upgradeLevels, gameState, dailyGoal, moneyEarnedToday, reputation, activeEvent,
+    upgradeLevels, gameState, dailyGoal, moneyEarnedToday, reputation, activeEvent, isPaused,
     buyIngredients, makeMomo, serveCustomer, purchaseUpgrade, startNextDay, restartGame, resetProgress,
+    togglePause,
   };
 }
 

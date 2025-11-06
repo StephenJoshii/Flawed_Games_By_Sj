@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Coins, Package, CalendarDays, Star, ArrowLeft } from "lucide-react";
+import { Coins, Package, CalendarDays, Star, ArrowLeft, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // The main UI header for the Momo Tycoon game.
-export function Header({ money, momoStock, day, dailyGoal, moneyEarnedToday, reputation }) {
+export function Header({ money, momoStock, day, dailyGoal, moneyEarnedToday, reputation, isPaused, onTogglePause }) {
   const goalProgress = dailyGoal > 0 ? (moneyEarnedToday / dailyGoal) * 100 : 0;
 
   const getReputationColor = () => {
@@ -28,6 +28,14 @@ export function Header({ money, momoStock, day, dailyGoal, moneyEarnedToday, rep
               <p className="text-sm md:text-base text-muted-foreground">From a humble cart to a momo empire!</p>
             </div>
          </div>
+         <Button 
+           variant={isPaused ? "default" : "outline"} 
+           size="icon"
+           onClick={onTogglePause}
+           className="transition-all"
+         >
+           {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+         </Button>
       </div>
       <Card>
         <CardContent className="pt-6">
