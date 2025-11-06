@@ -64,6 +64,8 @@ export function useGameLogic({ notify }) {
   const derivedValues = useMemo(() => {
     let reputationModifier = 1 + ((50 - reputation) / 100);
     let customerSpawnMultiplier = 1;
+    // Only lunch-rush affects customer spawn rate (makes them come faster)
+    // Load-shedding does NOT affect customer spawning
     if (activeEvent?.type === 'lunch-rush') customerSpawnMultiplier = 0.25;
 
     return {
