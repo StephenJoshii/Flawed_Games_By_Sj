@@ -4,7 +4,7 @@ import { MomoTycoon } from "./games/momo-tycoon/MomoTycoon.jsx";
 import { Game2048 } from "./games/twenty48/Game2048.jsx";
 import { BaghChal } from "./games/bagh-chal/BaghChal.jsx";
 import { Coup } from "./games/coup/Coup.jsx";
-import { Snake } from "./games/snake/Snake.jsx";
+import { Snake } from "./games/snake/snake.jsx";
 import NepalGeoGuesser from "./games/nepal-guesser/NepalGeoGuesser.jsx";
 
 function App() {
